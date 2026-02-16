@@ -1,0 +1,7 @@
+{
+  "name": "Culinary Creator Studio",
+  "description": "An all-in-one platform for recipe creation, food cost analysis, and culinary inspiration powered by Gemini AI.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
