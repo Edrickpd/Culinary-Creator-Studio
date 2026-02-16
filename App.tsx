@@ -9,7 +9,7 @@ import { FoodCost } from './pages/FoodCost';
 import { FoodHistory } from './pages/FoodHistory';
 import { CreateDish } from './pages/CreateDish';
 import { MyProjects } from './pages/MyProjects';
-import { SocialHub } from './pages/SocialHub';
+import { SocialHub } from './pages/Community';
 import { Settings } from './pages/Settings';
 import { gemini } from './services/geminiService';
 import { AppProvider, useAppContext } from './AppContext';
