@@ -38,7 +38,6 @@ const ChatBot = () => {
     scrollToBottom();
   }, [messages]);
 
-  // Real-time subscription for Direct Messages
   useEffect(() => {
     if (!isLoggedIn || !user) return;
 
@@ -89,7 +88,6 @@ const ChatBot = () => {
         const response = await gemini.getCulinaryAdvice(userMsg);
         setMessages(prev => [...prev, { role: 'bot', text: response || "I'm not sure how to answer that." }]);
         
-        // Optionally persist AI conversation to Supabase
         if (isLoggedIn && user) {
           await supabase.from('messages').insert({
             sender_id: user.id,
@@ -117,7 +115,6 @@ const ChatBot = () => {
     setShowChefSearch(false);
     setMessages([{ role: 'chef', text: `Conversación iniciada con Chef ${chef.chef_name || chef.full_name}` }]);
     
-    // Load history
     if (user) {
       const { data } = await supabase
         .from('messages')
@@ -248,11 +245,6 @@ const ChatBot = () => {
 const AppContent = () => {
   const { isLoggedIn } = useAppContext();
   const [showAuth, setShowAuth] = useState(false);
-
-  useEffect(() => {
-    // Show auth modal only if user is not logged in and specifically needs to interact
-    // Removed automatic trigger to allow browsing dashboard as guest
-  }, [isLoggedIn]);
 
   return (
     <>
