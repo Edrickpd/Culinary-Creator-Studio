@@ -72,12 +72,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const syncUserFromSession = useCallback(async (session: any) => {
     if (session?.user) {
-      // 1. Marcar logueado para no bloquear UI
       setIsLoggedIn(true);
-
       const meta = session.user.user_metadata;
       
-      // 2. Datos temporales
       const tempUserData: UserProfile = {
         id: session.user.id,
         email: session.user.email || '',
@@ -92,7 +89,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       setUser(tempUserData);
 
-      // 3. Carga real o creación forzosa
       try {
         let profile = await fetchProfileData(session.user.id);
         if (!profile) {
@@ -120,10 +116,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [fetchProfileData, createMissingProfile]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      syncUserFromSession(session);
-    });
+    // Correct v2 way to get session
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) syncUserFromSession(session);
+    };
+    checkSession();
 
+    // Correct v2 subscription handling
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         syncUserFromSession(session);
@@ -196,6 +196,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       if (dbError) throw dbError;
 
+      // Correct v2 method: updateUser instead of update
       const { error: authError } = await supabase.auth.updateUser({
         data: {
           full_name: data.fullName ?? user.fullName,
