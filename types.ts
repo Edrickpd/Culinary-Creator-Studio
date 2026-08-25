@@ -66,7 +66,7 @@ export interface PairingAnalysisItem {
 
 export interface PriceEntry {
   id: string;
-  ingredientId: string;
+  ingredientId?: string;
   name: string;
   category: string;
   country: string;
@@ -76,9 +76,9 @@ export interface PriceEntry {
   price: number;
   previousPrice?: number;
   currency: string;
-  lastUpdated: string;
-  trend: 'up' | 'down' | 'stable';
-  trendValue: string;
+  lastUpdated?: string;
+  trend?: 'up' | 'down' | 'stable';
+  trendValue?: string;
 }
 
 export interface ClipboardItem extends PriceEntry {
@@ -100,6 +100,8 @@ export interface CostIngredient {
   unit: string;
   unitPrice: number;
   currency: string;
+  isBaseSheet?: boolean;
+  baseSheetId?: string;
   grossWeight?: number;
   handlingLoss?: number;
   netWeight?: number;

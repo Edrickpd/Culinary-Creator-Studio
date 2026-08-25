@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { UserProfile, PlanTier } from './types';
+import { UserProfile, PlanTier, ClipboardItem, PriceEntry } from './types';
 import { translations } from './locales';
 import { supabase } from './supabaseClient';
 
@@ -9,13 +9,24 @@ interface AppContextType {
   isLoggedIn: boolean;
   theme: 'light' | 'dark';
   language: string;
+  currency: string;
   t: (key: string) => string;
   setLanguage: (lang: string) => void;
+  setCurrency: (curr: string) => void;
   toggleTheme: () => void;
   login: (userData: UserProfile) => void;
   logout: () => void;
   updateUser: (data: Partial<UserProfile>) => Promise<void>;
   refreshProfile: () => Promise<void>;
+  clipboard: ClipboardItem[];
+  setClipboard: React.Dispatch<React.SetStateAction<ClipboardItem[]>>;
+  toggleClipboardItem: (entry: PriceEntry, qty?: number) => void;
+  updateClipboardQuantity: (id: string, qty: number) => void;
+  removeFromClipboard: (id: string) => void;
+  duplicateClipboardItem: (id: string) => void;
+  clearClipboard: () => void;
+  isClipboardExpanded: boolean;
+  setIsClipboardExpanded: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -27,8 +38,84 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     (localStorage.getItem('theme') as 'light' | 'dark') || 'light'
   );
   const [language, setLanguageState] = useState(
-    localStorage.getItem('language') || 'en'
+    localStorage.getItem('language') || 'es'
   );
+  const [currency, setCurrencyState] = useState(
+    localStorage.getItem('currency') || '€'
+  );
+  const [isClipboardExpanded, setIsClipboardExpanded] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('ccs_clipboard_expanded');
+      return saved !== null ? JSON.parse(saved) : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const [clipboard, setClipboard] = useState<ClipboardItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('ccs_clipboard');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ccs_clipboard_expanded', JSON.stringify(isClipboardExpanded));
+    } catch (e) {
+      console.error('Failed to save clipboard expanded state', e);
+    }
+  }, [isClipboardExpanded]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ccs_clipboard', JSON.stringify(clipboard));
+    } catch (e) {
+      console.error('Failed to save clipboard to localStorage', e);
+    }
+  }, [clipboard]);
+
+  const toggleClipboardItem = (entry: PriceEntry, qty: number = 1) => {
+    setClipboard(prev => {
+      const exists = prev.find(item => item.id === entry.id);
+      if (exists) {
+        return prev.filter(item => item.id !== entry.id);
+      } else {
+        return [...prev, { ...entry, quantity: qty > 0 ? qty : 1 }];
+      }
+    });
+  };
+
+  const updateClipboardQuantity = (id: string, qty: number) => {
+    setClipboard(prev =>
+      prev.map(item =>
+        item.id === id ? { ...item, quantity: Math.max(0.01, qty) } : item
+      )
+    );
+  };
+
+  const removeFromClipboard = (id: string) => {
+    setClipboard(prev => prev.filter(i => i.id !== id));
+  };
+
+  const duplicateClipboardItem = (id: string) => {
+    setClipboard(prev => {
+      const item = prev.find(i => i.id === id);
+      if (!item) return prev;
+      const dup: ClipboardItem = {
+        ...item,
+        id: `dup_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        name: item.name
+      };
+      return [...prev, dup];
+    });
+  };
+
+  const clearClipboard = () => {
+    setClipboard([]);
+  };
 
   const fetchProfileData = useCallback(async (userId: string) => {
     try {
@@ -159,6 +246,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('language', lang);
   };
 
+  const setCurrency = (curr: string) => {
+    setCurrencyState(curr);
+    localStorage.setItem('currency', curr);
+  };
+
   const login = (userData: UserProfile) => {
     setUser(userData);
     setIsLoggedIn(true);
@@ -224,20 +316,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const t = (key: string) => {
+  const t = (key: string): string => {
     const keys = key.split('.');
-    let result = translations[language];
+    
+    // 1. Try requested language
+    let result: any = translations[language];
+    let found = true;
     for (const k of keys) {
-      if (!result || !result[k]) return key;
+      if (!result || result[k] === undefined) {
+        found = false;
+        break;
+      }
       result = result[k];
     }
-    return result as string;
+    if (found && typeof result === 'string') return result;
+
+    // 2. Fallback to English
+    let fallback: any = translations['en'];
+    found = true;
+    for (const k of keys) {
+      if (!fallback || fallback[k] === undefined) {
+        found = false;
+        break;
+      }
+      fallback = fallback[k];
+    }
+    if (found && typeof fallback === 'string') return fallback;
+
+    // 3. Fallback to key itself
+    return key;
   };
 
   return (
     <AppContext.Provider value={{ 
-      user, isLoggedIn, theme, language, t, 
-      setLanguage, toggleTheme, login, logout, updateUser, refreshProfile 
+      user, isLoggedIn, theme, language, currency, t, 
+      setLanguage, setCurrency, toggleTheme, login, logout, updateUser, refreshProfile,
+      clipboard, setClipboard, toggleClipboardItem, updateClipboardQuantity,
+      removeFromClipboard, duplicateClipboardItem, clearClipboard,
+      isClipboardExpanded, setIsClipboardExpanded
     }}>
       {children}
     </AppContext.Provider>

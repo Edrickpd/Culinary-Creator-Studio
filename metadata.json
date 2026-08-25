@@ -3,5 +3,8 @@
   "description": "An all-in-one platform for recipe creation, food cost analysis, and culinary inspiration powered by Gemini AI.",
   "requestFramePermissions": [
     "microphone"
+  ],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]
 }

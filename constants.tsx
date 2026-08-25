@@ -24,6 +24,23 @@ export const SUPPLIERS_BY_COUNTRY: Record<string, string[]> = {
 
 export const CATEGORIES = ['Protein', 'Vegetable', 'Fruit', 'Dairy', 'Spice/Herb', 'Grain', 'Oil/Fat', 'Other'];
 
+export const EU_ALLERGENS = [
+  'Gluten / Cereals',
+  'Crustaceans',
+  'Eggs',
+  'Fish',
+  'Peanuts',
+  'Soybeans',
+  'Milk / Dairy',
+  'Nuts (Tree nuts)',
+  'Celery',
+  'Mustard',
+  'Sesame Seeds',
+  'Sulphites / SO2',
+  'Lupin',
+  'Molluscs'
+];
+
 const rawJanData = `Almonds,France,Carrefour Pro,kg,EUR,15.86
 Apples,France,Carrefour Pro,kg,EUR,1.3
 Avocado,France,Carrefour Pro,kg,EUR,3.18
@@ -311,13 +328,13 @@ export const BASE_INGREDIENTS = [
 
 export const MENU_ITEMS = [
   { id: 'dashboard', translationKey: 'navigation.dashboard', icon: 'dashboard', path: '/' },
-  { id: 'price-tracker', translationKey: 'navigation.priceTracker', icon: 'sell', path: '/price-tracker' },
-  { id: 'food-cost', translationKey: 'navigation.foodCost', icon: 'attach_money', path: '/food-cost' },
-  { id: 'pairing', translationKey: 'navigation.pairingAnalysis', icon: 'science', path: '/pairing' },
-  { id: 'history', translationKey: 'navigation.foodHistory', icon: 'history', path: '/history' },
   { id: 'create-dish', translationKey: 'navigation.createDish', icon: 'add_circle', path: '/create-dish' },
   { id: 'projects', translationKey: 'navigation.myProjects', icon: 'folder_open', path: '/projects' },
   { id: 'social', translationKey: 'navigation.socialHub', icon: 'groups', path: '/social' },
+  { id: 'pairing', translationKey: 'navigation.pairingAnalysis', icon: 'science', path: '/pairing' },
+  { id: 'history', translationKey: 'navigation.foodHistory', icon: 'history', path: '/history' },
+  { id: 'price-tracker', translationKey: 'navigation.priceTracker', icon: 'sell', path: '/price-tracker' },
+  { id: 'food-cost', translationKey: 'navigation.foodCost', icon: 'attach_money', path: '/food-cost' },
   { id: 'settings', translationKey: 'navigation.settings', icon: 'settings', path: '/settings' },
 ];
 
