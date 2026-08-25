@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { PrepStep, ChefNote, Attachment, IngredientSubdivision, ChefNoteType } from '../types';
 import { supabase } from '../supabaseClient';
@@ -21,54 +21,94 @@ const NOTE_HEX: Record<ChefNoteType, string> = {
   variation: '#6b7280'
 };
 
+const getInitialCreateDishDraft = () => {
+  try {
+    const raw = sessionStorage.getItem('ccs_active_create_dish_draft');
+    if (raw) return JSON.parse(raw);
+  } catch (_) {}
+  return null;
+};
+
 export const CreateDish = () => {
   const { user, isLoggedIn } = useAppContext();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('info');
+
+  const initialDraft = useMemo(() => getInitialCreateDishDraft(), []);
+
+  const [activeTab, setActiveTab] = useState<string>(() => initialDraft?.activeTab ?? 'info');
   const [saving, setSaving] = useState(false);
-  const [lastSaved, setLastSaved] = useState<string | null>(null);
+  const [lastSaved, setLastSaved] = useState<string | null>(() => initialDraft?.lastSaved ?? null);
   const [showToast, setShowToast] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
-  const [isShared, setIsShared] = useState(false);
+  const [isShared, setIsShared] = useState<boolean>(() => !!initialDraft?.isShared);
 
   // IDs and Modals
-  const [currentRecipeId, setCurrentRecipeId] = useState<string | null>(null);
+  const [currentRecipeId, setCurrentRecipeId] = useState<string | null>(() => initialDraft?.currentRecipeId ?? null);
   const [showMyRecipes, setShowMyRecipes] = useState(false);
   const [userRecipes, setUserRecipes] = useState<any[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
 
-  // Form State
-  const [title, setTitle] = useState('');
-  const [difficulty, setDifficulty] = useState('Beginner');
-  const [prepTime, setPrepTime] = useState(45);
-  const [prepTimeUnit, setPrepTimeUnit] = useState<'mins' | 'hours'>('mins');
-  const [servings, setServings] = useState(4);
-  const [description, setDescription] = useState('');
-  const [subdivisions, setSubdivisions] = useState<IngredientSubdivision[]>([
+  // Form State (Synchronously initialized from session draft so navigation never resets work)
+  const [title, setTitle] = useState<string>(() => initialDraft?.title ?? '');
+  const [difficulty, setDifficulty] = useState<string>(() => initialDraft?.difficulty ?? 'Beginner');
+  const [prepTime, setPrepTime] = useState<number>(() => Number(initialDraft?.prepTime) || 45);
+  const [prepTimeUnit, setPrepTimeUnit] = useState<'mins' | 'hours'>(() => initialDraft?.prepTimeUnit ?? 'mins');
+  const [servings, setServings] = useState<number>(() => Number(initialDraft?.servings) || 4);
+  const [description, setDescription] = useState<string>(() => initialDraft?.description ?? '');
+  const [subdivisions, setSubdivisions] = useState<IngredientSubdivision[]>(() => Array.isArray(initialDraft?.subdivisions) ? initialDraft.subdivisions : [
     { id: 'sub-1', title: 'Main Ingredients', items: [{ id: 'ing-1', name: '', quantity: '', unit: 'kg' }] }
   ]);
-  const [steps, setSteps] = useState<string[]>(['']);
-  const [images, setImages] = useState<string[]>([]);
-  const [notes, setNotes] = useState<ChefNote[]>([]);
+  const [steps, setSteps] = useState<string[]>(() => Array.isArray(initialDraft?.steps) ? initialDraft.steps : ['']);
+  const [images, setImages] = useState<string[]>(() => Array.isArray(initialDraft?.images) ? initialDraft.images : []);
+  const [notes, setNotes] = useState<ChefNote[]>(() => Array.isArray(initialDraft?.notes) ? initialDraft.notes : []);
   const [newNoteContent, setNewNoteContent] = useState('');
   const [newNoteType, setNewNoteType] = useState<ChefNoteType>('tip');
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [showAttachmentPicker, setShowAttachmentPicker] = useState<'pairing' | 'context' | null>(null);
+  const [attachments, setAttachments] = useState<Attachment[]>(() => Array.isArray(initialDraft?.attachments) ? initialDraft.attachments : []);
+  const [showAttachmentPicker, setShowAttachmentPicker] = useState<'pairing' | 'foodCost' | null>(null);
   const [userPairings, setUserPairings] = useState<any[]>([]);
+  const [userFoodCosts, setUserFoodCosts] = useState<any[]>([]);
 
-  // Fetch initial data & load from URL if needed
+  const lastLoadedRecipeIdRef = useRef<string | null>(initialDraft?.currentRecipeId ?? null);
+
+  // Fetch initial data & load from URL if query param is set
   useEffect(() => {
     if (isLoggedIn && user) {
       fetchUserRecipes();
       fetchPairings();
+      fetchFoodCosts();
       
       const recipeId = searchParams.get('id');
-      if (recipeId) {
+      if (recipeId && recipeId !== lastLoadedRecipeIdRef.current) {
+        lastLoadedRecipeIdRef.current = recipeId;
         fetchSpecificRecipe(recipeId);
       }
     }
   }, [isLoggedIn, user, searchParams]);
+
+  // Sync ongoing canvas state to session storage
+  useEffect(() => {
+    try {
+      const stateToPersist = {
+        currentRecipeId,
+        title,
+        difficulty,
+        prepTime,
+        prepTimeUnit,
+        servings,
+        description,
+        subdivisions,
+        steps,
+        images,
+        notes,
+        attachments,
+        activeTab,
+        isShared,
+        lastSaved
+      };
+      sessionStorage.setItem('ccs_active_create_dish_draft', JSON.stringify(stateToPersist));
+    } catch (_) {}
+  }, [currentRecipeId, title, difficulty, prepTime, prepTimeUnit, servings, description, subdivisions, steps, images, notes, attachments, activeTab, isShared, lastSaved]);
 
   useEffect(() => {
     if (currentRecipeId && user) {
@@ -98,11 +138,22 @@ export const CreateDish = () => {
 
   const fetchPairings = async () => {
     if (!user) return;
-    const { data } = await supabase.from('pairings').select('*').eq('user_id', user.id);
+    const { data } = await supabase.from('pairings').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
     if (data) setUserPairings(data);
   };
 
+  const fetchFoodCosts = async () => {
+    if (!user) return;
+    const { data } = await supabase.from('food_costs').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
+    if (data) setUserFoodCosts(data);
+  };
+
   const handleNewRecipe = () => {
+    try {
+      sessionStorage.removeItem('ccs_active_create_dish_draft');
+      window.history.replaceState(null, '', '/create-dish');
+    } catch (_) {}
+    lastLoadedRecipeIdRef.current = null;
     setCurrentRecipeId(null);
     setTitle('');
     setDifficulty('Beginner');
@@ -124,6 +175,7 @@ export const CreateDish = () => {
   };
 
   const loadRecipe = (recipe: any) => {
+    lastLoadedRecipeIdRef.current = recipe.id;
     setCurrentRecipeId(recipe.id);
     setTitle(recipe.title || recipe.name || '');
     setDifficulty(recipe.difficulty || 'Beginner');
@@ -137,14 +189,42 @@ export const CreateDish = () => {
       setPrepTime(totalMins);
       setPrepTimeUnit('mins');
     }
-    setSubdivisions(recipe.ingredients || [{ id: 'sub-1', title: 'Main Ingredients', items: [] }]);
-    setSteps(recipe.prep_steps || ['']);
-    setImages(recipe.images || []);
-    setNotes(recipe.chef_notes || []);
-    setAttachments(recipe.attachments || []);
+    const loadedSubs = recipe.ingredients || [{ id: 'sub-1', title: 'Main Ingredients', items: [] }];
+    const loadedSteps = recipe.prep_steps || [''];
+    const loadedImages = recipe.images || [];
+    const loadedNotes = recipe.chef_notes || [];
+    const loadedAttachments = recipe.attachments || [];
+
+    setSubdivisions(loadedSubs);
+    setSteps(loadedSteps);
+    setImages(loadedImages);
+    setNotes(loadedNotes);
+    setAttachments(loadedAttachments);
     setShowMyRecipes(false);
-    setLastSaved(new Date(recipe.updated_at).toLocaleTimeString());
-    setToastMsg(`Loaded: ${recipe.title}`);
+    const savedTime = new Date(recipe.updated_at || Date.now()).toLocaleTimeString();
+    setLastSaved(savedTime);
+
+    try {
+      sessionStorage.setItem('ccs_active_create_dish_draft', JSON.stringify({
+        currentRecipeId: recipe.id,
+        title: recipe.title || recipe.name || '',
+        difficulty: recipe.difficulty || 'Beginner',
+        prepTime: totalMins,
+        prepTimeUnit: 'mins',
+        servings: recipe.servings || 4,
+        description: recipe.description || '',
+        subdivisions: loadedSubs,
+        steps: loadedSteps,
+        images: loadedImages,
+        notes: loadedNotes,
+        attachments: loadedAttachments,
+        activeTab: 'info',
+        isShared: false,
+        lastSaved: savedTime
+      }));
+    } catch (_) {}
+
+    setToastMsg(`Loaded: ${recipe.title || recipe.name}`);
     setShowToast(true);
     setTimeout(() => setShowToast(false), 2000);
   };
@@ -182,6 +262,7 @@ export const CreateDish = () => {
       if (result.error) throw result.error;
       if (result.data) {
         setCurrentRecipeId(result.data.id);
+        lastLoadedRecipeIdRef.current = result.data.id;
         setLastSaved(new Date().toLocaleTimeString());
         setToastMsg('Studio Cloud updated');
         setShowToast(true);
@@ -228,6 +309,8 @@ export const CreateDish = () => {
   const deleteRecipe = async (id: string) => {
     setSaving(true);
     try {
+      await supabase.from('social_posts').delete().eq('recipe_id', id);
+      await supabase.from('shared_items').delete().eq('item_id', id);
       await supabase.from('recipes').delete().eq('id', id).eq('user_id', user?.id);
       setUserRecipes(prev => prev.filter(r => r.id !== id));
       if (currentRecipeId === id) handleNewRecipe();
@@ -261,7 +344,31 @@ export const CreateDish = () => {
   const addNote = () => { if (!newNoteContent.trim()) return; setNotes([...notes, { id: `note-${Date.now()}`, type: newNoteType, content: newNoteContent }]); setNewNoteContent(''); };
   // Fixed error on line 417: Added the missing removeNote function
   const removeNote = (id: string) => setNotes(notes.filter(n => n.id !== id));
-  const attachPairing = (p: any) => { if (attachments.find(a => a.itemId === p.id)) return; setAttachments([...attachments, { id: `att-${Date.now()}`, type: 'pairing', itemId: p.id, itemName: p.title || p.ingredients.join(' + '), attachedAt: new Date().toISOString() }]); setShowAttachmentPicker(null); };
+  const attachPairing = (p: any) => {
+    if (attachments.find(a => a.itemId === p.id)) return;
+    setAttachments([...attachments, {
+      id: `att-${Date.now()}`,
+      type: 'pairing',
+      itemId: p.id,
+      itemName: p.title || p.ingredients.join(' + '),
+      itemData: { compatibilityScore: p.analysis?.compatibilityScore },
+      attachedAt: new Date().toISOString()
+    }]);
+    setShowAttachmentPicker(null);
+  };
+
+  const attachFoodCost = (f: any) => {
+    if (attachments.find(a => a.itemId === f.id)) return;
+    setAttachments([...attachments, {
+      id: `att-${Date.now()}`,
+      type: 'foodCost',
+      itemId: f.id,
+      itemName: f.recipe_name,
+      itemData: { template: f.template, costPerServing: f.data?.totals?.costPerServing, totalCost: f.data?.totals?.combinedTotalCost },
+      attachedAt: new Date().toISOString()
+    }]);
+    setShowAttachmentPicker(null);
+  };
 
   return (
     <div className="h-full flex flex-col bg-background-light dark:bg-background-dark relative font-sans overflow-hidden">
@@ -425,20 +532,61 @@ export const CreateDish = () => {
             )}
             {activeTab === 'attachments' && (
               <div className="space-y-8">
-                <h3 className="text-lg md:text-xl font-black uppercase tracking-tight">Attachments</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <button onClick={() => setShowAttachmentPicker('pairing')} className="p-8 bg-white dark:bg-white/5 border border-gray-100 dark:border-gray-800 rounded-3xl flex flex-col items-center gap-4 hover:border-primary transition-all group">
-                     <div className="size-16 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center group-hover:scale-110 transition-transform"><span className="material-symbols-outlined text-4xl">science</span></div>
-                     <span className="text-xs font-black uppercase tracking-widest text-center">Link Pairings</span>
+                <div className="space-y-1">
+                  <h3 className="text-lg md:text-xl font-black uppercase tracking-tight">Linked Studio Intelligence</h3>
+                  <p className="text-xs text-text-muted font-medium">Attach molecular pairing analyses and food costing calculations to this recipe canvas.</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <button 
+                    onClick={() => { fetchPairings(); setShowAttachmentPicker('pairing'); }} 
+                    className="p-8 bg-white dark:bg-white/5 border border-gray-100 dark:border-gray-800 rounded-3xl flex items-center gap-6 hover:border-blue-500 transition-all group shadow-sm text-left"
+                  >
+                     <div className="size-16 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center group-hover:scale-110 transition-transform shrink-0">
+                       <span className="material-symbols-outlined text-4xl">science</span>
+                     </div>
+                     <div>
+                       <span className="text-sm font-black uppercase tracking-wider block">Link Pairing Analysis</span>
+                       <span className="text-xs text-text-muted font-medium">Attach flavor affinity reports and scores</span>
+                     </div>
+                  </button>
+
+                  <button 
+                    onClick={() => { fetchFoodCosts(); setShowAttachmentPicker('foodCost'); }} 
+                    className="p-8 bg-white dark:bg-white/5 border border-gray-100 dark:border-gray-800 rounded-3xl flex items-center gap-6 hover:border-amber-500 transition-all group shadow-sm text-left"
+                  >
+                     <div className="size-16 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center group-hover:scale-110 transition-transform shrink-0">
+                       <span className="material-symbols-outlined text-4xl">payments</span>
+                     </div>
+                     <div>
+                       <span className="text-sm font-black uppercase tracking-wider block">Link Food Cost</span>
+                       <span className="text-xs text-text-muted font-medium">Attach cost per serving & sub-recipe sheets</span>
+                     </div>
                   </button>
                 </div>
+
                 <div className="space-y-4">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-text-muted border-b border-gray-100 dark:border-gray-800 pb-2">Currently Attached ({attachments.length})</h4>
                   {attachments.map(att => (
-                    <div key={att.id} className="p-4 bg-gray-50 dark:bg-black/20 rounded-2xl flex items-center justify-between group">
-                       <div className="flex items-center gap-4"><span className="material-symbols-outlined text-primary">science</span><div className="flex flex-col"><span className="text-xs font-black uppercase">{att.itemName}</span><span className="text-[9px] text-text-muted font-bold">{att.type}</span></div></div>
-                       <button onClick={() => setAttachments(attachments.filter(a => a.id !== att.id))} className="text-gray-300 hover:text-red-500 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity px-2"><span className="material-symbols-outlined text-[18px]">close</span></button>
+                    <div key={att.id} className="p-4 bg-white dark:bg-white/5 border border-gray-100 dark:border-gray-800 rounded-2xl flex items-center justify-between group shadow-sm hover:border-primary transition-all">
+                       <div className="flex items-center gap-4">
+                         <div className={`size-10 rounded-xl flex items-center justify-center ${att.type === 'foodCost' ? 'bg-amber-500/10 text-amber-500' : 'bg-blue-500/10 text-blue-500'}`}>
+                           <span className="material-symbols-outlined text-[20px]">{att.type === 'foodCost' ? 'payments' : 'science'}</span>
+                         </div>
+                         <div className="flex flex-col">
+                           <span className="text-xs font-black uppercase">{att.itemName}</span>
+                           <span className="text-[9px] text-text-muted font-bold uppercase tracking-widest">{att.type === 'foodCost' ? 'Costing Calculation' : 'Molecular Pairing'}</span>
+                         </div>
+                       </div>
+                       <button onClick={() => setAttachments(attachments.filter(a => a.id !== att.id))} className="text-gray-300 hover:text-red-500 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity p-2">
+                         <span className="material-symbols-outlined text-[18px]">close</span>
+                       </button>
                     </div>
                   ))}
+                  {attachments.length === 0 && (
+                    <div className="p-8 text-center text-text-muted border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-2xl text-xs font-bold uppercase tracking-widest">
+                      No intelligence linked yet. Click above to attach saved pairings or food costs.
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -487,12 +635,54 @@ export const CreateDish = () => {
       {showAttachmentPicker && (
         <div className="fixed inset-0 z-[400] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setShowAttachmentPicker(null)}></div>
-          <div className="relative w-full max-w-md bg-white dark:bg-surface-dark rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800">
-             <header className="p-5 border-b border-gray-50 dark:border-gray-800 flex items-center justify-between bg-gray-50 dark:bg-white/5"><h3 className="text-lg font-black uppercase">Attach pairing</h3><button onClick={() => setShowAttachmentPicker(null)} className="material-symbols-outlined">close</button></header>
-             <div className="p-5 max-h-[60vh] overflow-y-auto space-y-3">
-                {userPairings.map(p => (
-                  <button key={p.id} onClick={() => attachPairing(p)} className="w-full p-4 bg-gray-50 dark:bg-black/20 rounded-2xl flex items-center justify-between hover:border-primary border border-transparent transition-all"><span className="text-xs font-black uppercase text-left truncate flex-1">{p.title || p.ingredients.join(' + ')}</span><span className="material-symbols-outlined text-primary ml-2">add_circle</span></button>
-                ))}
+          <div className="relative w-full max-w-md bg-white dark:bg-surface-dark rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800 flex flex-col max-h-[75vh]">
+             <header className="p-6 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gray-50 dark:bg-white/5">
+               <div className="flex items-center gap-3">
+                 <span className={`material-symbols-outlined ${showAttachmentPicker === 'foodCost' ? 'text-amber-500' : 'text-blue-500'}`}>
+                   {showAttachmentPicker === 'foodCost' ? 'payments' : 'science'}
+                 </span>
+                 <h3 className="text-lg font-black uppercase">
+                   {showAttachmentPicker === 'foodCost' ? 'Attach Food Cost' : 'Attach Pairing Analysis'}
+                 </h3>
+               </div>
+               <button onClick={() => setShowAttachmentPicker(null)} className="material-symbols-outlined text-gray-400 hover:text-white">close</button>
+             </header>
+             <div className="p-6 overflow-y-auto space-y-3 flex-1">
+                {showAttachmentPicker === 'pairing' && (
+                  userPairings.length > 0 ? (
+                    userPairings.map(p => (
+                      <button key={p.id} onClick={() => attachPairing(p)} className="w-full p-4 bg-gray-50 dark:bg-black/20 rounded-2xl flex items-center justify-between hover:border-blue-500 border border-transparent transition-all group text-left">
+                        <div className="flex flex-col truncate pr-2">
+                          <span className="text-xs font-black uppercase truncate group-hover:text-blue-500 transition-colors">{p.title || p.ingredients.join(' + ')}</span>
+                          <span className="text-[9px] text-text-muted font-bold">{p.analysis?.compatibilityScore || 0}% Synergy Score</span>
+                        </div>
+                        <span className="material-symbols-outlined text-blue-500 shrink-0">add_circle</span>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="py-12 text-center text-text-muted text-xs font-bold uppercase tracking-widest">
+                      No saved pairings found. Create analyses in Pairing Analysis first.
+                    </div>
+                  )
+                )}
+
+                {showAttachmentPicker === 'foodCost' && (
+                  userFoodCosts.length > 0 ? (
+                    userFoodCosts.map(f => (
+                      <button key={f.id} onClick={() => attachFoodCost(f)} className="w-full p-4 bg-gray-50 dark:bg-black/20 rounded-2xl flex items-center justify-between hover:border-amber-500 border border-transparent transition-all group text-left">
+                        <div className="flex flex-col truncate pr-2">
+                          <span className="text-xs font-black uppercase truncate group-hover:text-amber-500 transition-colors">{f.recipe_name}</span>
+                          <span className="text-[9px] text-text-muted font-bold uppercase">{f.template} Template</span>
+                        </div>
+                        <span className="material-symbols-outlined text-amber-500 shrink-0">add_circle</span>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="py-12 text-center text-text-muted text-xs font-bold uppercase tracking-widest">
+                      No saved food cost calculations found. Create sheets in Food Cost first.
+                    </div>
+                  )
+                )}
              </div>
           </div>
         </div>

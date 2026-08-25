@@ -6,7 +6,7 @@ import { PlanTier } from '../types';
 import { supabase } from '../supabaseClient';
 
 export const Settings = () => {
-  const { t, user, theme, language, setLanguage, toggleTheme, updateUser, isLoggedIn, logout } = useAppContext();
+  const { t, user, theme, language, setLanguage, currency, setCurrency, toggleTheme, updateUser, isLoggedIn, logout } = useAppContext();
   const location = useLocation();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'profile' | 'subscription' | 'preferences'>('profile');
@@ -291,6 +291,29 @@ export const Settings = () => {
                         {lang.name}
                       </option>
                     ))}
+                  </select>
+                  <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted">expand_more</span>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <label className="text-sm font-black uppercase tracking-widest text-text-muted flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[20px]">payments</span> {t('settings.currency')}
+                </label>
+                <div className="relative max-w-xs">
+                  <select 
+                    className="w-full h-12 bg-gray-50 dark:bg-surface-dark border-none rounded-xl px-4 text-sm font-bold uppercase tracking-widest text-text-main dark:text-white focus:ring-1 focus:ring-primary appearance-none cursor-pointer"
+                    value={currency}
+                    onChange={(e) => setCurrency(e.target.value)}
+                  >
+                    <option value="€" className="bg-white dark:bg-surface-dark text-black dark:text-white">EUR (€) - Euro</option>
+                    <option value="$" className="bg-white dark:bg-surface-dark text-black dark:text-white">USD ($) - US Dollar</option>
+                    <option value="£" className="bg-white dark:bg-surface-dark text-black dark:text-white">GBP (£) - British Pound</option>
+                    <option value="¥" className="bg-white dark:bg-surface-dark text-black dark:text-white">JPY (¥) - Japanese Yen</option>
+                    <option value="MXN$" className="bg-white dark:bg-surface-dark text-black dark:text-white">MXN ($) - Peso Mexicano</option>
+                    <option value="CAD$" className="bg-white dark:bg-surface-dark text-black dark:text-white">CAD ($) - Canadian Dollar</option>
+                    <option value="CHF" className="bg-white dark:bg-surface-dark text-black dark:text-white">CHF - Swiss Franc</option>
+                    <option value="R$" className="bg-white dark:bg-surface-dark text-black dark:text-white">BRL (R$) - Real Brasileiro</option>
                   </select>
                   <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted">expand_more</span>
                 </div>

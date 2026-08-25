@@ -51,6 +51,31 @@ export const SocialHub = () => {
   const fetchPosts = async () => {
     setLoading(true);
     try {
+      // 1. Proactively clean up any orphaned/ghost posts from database
+      if (user) {
+        try {
+          const { data: myRecipes } = await supabase.from('recipes').select('id').eq('user_id', user.id);
+          const myRecipeIds = (myRecipes || []).map(r => r.id);
+
+          if (myRecipeIds.length === 0) {
+            // User has no recipes left, delete all their social posts
+            await supabase.from('social_posts').delete().eq('user_id', user.id);
+          } else {
+            const { data: myPosts } = await supabase.from('social_posts').select('id, recipe_id').eq('user_id', user.id);
+            if (myPosts && myPosts.length > 0) {
+              const ghostPostIds = myPosts
+                .filter(p => !p.recipe_id || !myRecipeIds.includes(p.recipe_id))
+                .map(p => p.id);
+              if (ghostPostIds.length > 0) {
+                await supabase.from('social_posts').delete().in('id', ghostPostIds);
+              }
+            }
+          }
+        } catch (cleanErr) {
+          console.warn("Ghost post cleanup notice:", cleanErr);
+        }
+      }
+
       let query = supabase
         .from('social_posts')
         .select(`
@@ -96,13 +121,16 @@ export const SocialHub = () => {
       if (error) throw error;
 
       if (data) {
+        // Only display strictly valid posts (recipe must exist and not be null)
+        const validData = data.filter(p => p.recipe_id && p.recipe !== null);
+
         let followingIds: string[] = [];
         if (user) {
           const { data: follows } = await supabase.from('follows').select('following_id').eq('follower_id', user.id);
           followingIds = (follows || []).map(f => f.following_id);
         }
 
-        const formatted: SocialPost[] = data.map(p => ({
+        const formatted: SocialPost[] = validData.map(p => ({
           id: p.id,
           user_id: p.user_id,
           recipe_id: p.recipe_id,
@@ -127,8 +155,8 @@ export const SocialHub = () => {
 
         setPosts(formatted);
       }
-    } catch (err) {
-      console.error("Fetch posts error:", err);
+    } catch (err: any) {
+      console.error('Error fetching social feed:', err);
     } finally {
       setLoading(false);
     }
@@ -554,12 +582,12 @@ export const SocialHub = () => {
                             <h4 className="text-[11px] font-black uppercase tracking-[0.3em] text-primary border-b border-primary/20 pb-3">Linked Intelligence</h4>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                {selectedPost.recipeData.attachments.map((att: any) => (
-                                 <div key={att.id} className="p-6 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-[24px] flex items-center gap-5 shadow-sm hover:border-blue-500 transition-all cursor-pointer">
-                                    <div className="size-14 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center shadow-inner">
-                                      <span className="material-symbols-outlined text-3xl">{att.type === 'pairing' ? 'science' : 'attachment'}</span>
+                                 <div key={att.id} className="p-6 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-[24px] flex items-center gap-5 shadow-sm hover:border-primary transition-all">
+                                    <div className={`size-14 rounded-2xl flex items-center justify-center shadow-inner ${att.type === 'foodCost' ? 'bg-amber-500/10 text-amber-500' : 'bg-blue-500/10 text-blue-500'}`}>
+                                      <span className="material-symbols-outlined text-3xl">{att.type === 'foodCost' ? 'payments' : 'science'}</span>
                                     </div>
                                     <div className="flex flex-col">
-                                      <span className="text-[10px] font-black text-text-muted uppercase tracking-[0.1em]">{att.type}</span>
+                                      <span className="text-[10px] font-black text-text-muted uppercase tracking-[0.1em]">{att.type === 'foodCost' ? 'Food Cost Sheet' : 'Molecular Pairing'}</span>
                                       <span className="text-base font-black uppercase dark:text-white leading-tight">{att.itemName}</span>
                                     </div>
                                  </div>

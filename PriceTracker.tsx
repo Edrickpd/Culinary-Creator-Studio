@@ -1,15 +1,29 @@
-
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MOCK_PRICE_ENTRIES, COUNTRIES, CATEGORIES, SUPPLIERS_BY_COUNTRY } from '../constants';
-import { PriceEntry, FilterState, ClipboardItem } from '../types';
+import { MOCK_PRICE_ENTRIES, COUNTRIES, CATEGORIES } from '../constants';
+import { PriceEntry, FilterState } from '../types';
+import { useAppContext } from '../AppContext';
+import { supabase } from '../supabaseClient';
 
 export const PriceTracker = () => {
   const navigate = useNavigate();
+  const {
+    clipboard,
+    toggleClipboardItem,
+    updateClipboardQuantity,
+    removeFromClipboard,
+    duplicateClipboardItem,
+    clearClipboard,
+    isClipboardExpanded,
+    setIsClipboardExpanded
+  } = useAppContext();
 
   // --- STATE ---
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
-  const [isClipboardExpanded, setIsClipboardExpanded] = useState(false);
+  const [isLoadingDb, setIsLoadingDb] = useState(false);
+  const [dbEntries, setDbEntries] = useState<PriceEntry[]>([]);
+  const [dataSource, setDataSource] = useState<'supabase' | 'local'>('local');
+
   const [filters, setFilters] = useState<FilterState>({
     country: 'All',
     categories: [],
@@ -17,99 +31,113 @@ export const PriceTracker = () => {
     priceRange: [0, 50000],
     searchTerm: '',
   });
-  
-  const [clipboard, setClipboard] = useState<ClipboardItem[]>([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(25);
-  const [sortConfig, setSortConfig] = useState<{ key: keyof PriceEntry; direction: 'asc' | 'desc' } | null>(null);
 
-  // Derive selectedRowIds from clipboard for UI state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(30); // 15 pairs in 2 cols
+  const [sortKey, setSortKey] = useState<keyof PriceEntry>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  // --- FETCH FROM SUPABASE ---
+  const loadPricesFromSupabase = useCallback(async () => {
+    setIsLoadingDb(true);
+    try {
+      const { data, error } = await supabase
+        .from('ingredients_prices')
+        .select('*')
+        .order('ingredient_name', { ascending: true });
+
+      if (error) {
+        console.warn('Supabase ingredients_prices fetch warning, using local dataset:', error.message);
+        setDataSource('local');
+      } else if (data && data.length > 0) {
+        const mapped: PriceEntry[] = data.map((row: any) => ({
+          id: row.id || `sp_${row.ingredient_name}_${row.country_code}_${row.distributor_name}`,
+          ingredientId: row.id,
+          name: row.ingredient_name || row.name,
+          category: row.category || 'Other',
+          country: row.country_name || row.country || row.country_code,
+          countryCode: row.country_code || 'ES',
+          supplier: row.distributor_name || row.supplier || 'Direct Market',
+          unit: row.unit || 'kg',
+          price: Number(row.price_per_unit || row.price || 0),
+          currency: row.currency || '€',
+          lastUpdated: row.last_updated || new Date().toISOString()
+        }));
+        setDbEntries(mapped);
+        setDataSource('supabase');
+      } else {
+        setDataSource('local');
+      }
+    } catch (err) {
+      console.warn('Could not query Supabase ingredients_prices:', err);
+      setDataSource('local');
+    } finally {
+      setIsLoadingDb(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPricesFromSupabase();
+  }, [loadPricesFromSupabase]);
+
+  // Use Supabase data if present, otherwise fallback to curated dataset
+  const activeDataset = useMemo(() => {
+    return dbEntries.length > 0 ? dbEntries : MOCK_PRICE_ENTRIES;
+  }, [dbEntries]);
+
+  // Selected row IDs derived from global clipboard
   const selectedRowIds = useMemo(() => new Set(clipboard.map(i => i.id)), [clipboard]);
 
-  // --- DERIVED DATA ---
+  // --- FILTER & SORT ---
   const filteredData = useMemo(() => {
-    return MOCK_PRICE_ENTRIES.filter(entry => {
+    return activeDataset.filter(entry => {
       if (filters.country !== 'All' && entry.countryCode !== filters.country) return false;
       if (filters.categories.length > 0 && !filters.categories.includes(entry.category)) return false;
       if (filters.suppliers.length > 0 && !filters.suppliers.includes(entry.supplier)) return false;
       if (entry.price < filters.priceRange[0] || entry.price > filters.priceRange[1]) return false;
-      if (filters.searchTerm && !entry.name.toLowerCase().includes(filters.searchTerm.toLowerCase())) return false;
+      if (filters.searchTerm) {
+        const query = filters.searchTerm.toLowerCase();
+        const matchesName = entry.name.toLowerCase().includes(query);
+        const matchesCat = entry.category.toLowerCase().includes(query);
+        const matchesSupplier = entry.supplier.toLowerCase().includes(query);
+        if (!matchesName && !matchesCat && !matchesSupplier) return false;
+      }
       return true;
     });
-  }, [filters]);
+  }, [activeDataset, filters]);
 
   const sortedData = useMemo(() => {
-    if (!sortConfig) return filteredData;
-    const sorted = [...filteredData].sort((a, b) => {
-      const aVal = a[sortConfig.key];
-      const bVal = b[sortConfig.key];
+    return [...filteredData].sort((a, b) => {
+      const aVal = a[sortKey];
+      const bVal = b[sortKey];
       if (aVal === undefined || bVal === undefined) return 0;
-      if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
-      return 0;
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+      }
+      const strA = String(aVal).toLowerCase();
+      const strB = String(bVal).toLowerCase();
+      return sortDirection === 'asc' ? strA.localeCompare(strB) : strB.localeCompare(strA);
     });
-    return sorted;
-  }, [filteredData, sortConfig]);
+  }, [filteredData, sortKey, sortDirection]);
 
   const paginatedData = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return sortedData.slice(start, start + itemsPerPage);
   }, [sortedData, currentPage, itemsPerPage]);
 
-  const totalPages = Math.ceil(sortedData.length / itemsPerPage);
+  const totalPages = Math.max(1, Math.ceil(sortedData.length / itemsPerPage));
 
-  // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filters]);
-
-  // --- HANDLERS ---
-  const handleToggleRow = (entry: PriceEntry) => {
-    setClipboard(prev => {
-      const exists = prev.find(item => item.id === entry.id);
-      if (exists) {
-        return prev.filter(item => item.id !== entry.id);
-      } else {
-        return [...prev, { ...entry, quantity: 1 }];
-      }
-    });
-  };
-
-  const handleSelectAll = () => {
-    const allInPage = paginatedData;
-    const allSelectedInPage = allInPage.every(d => selectedRowIds.has(d.id));
-
-    if (allSelectedInPage) {
-      const idsToRemove = new Set(allInPage.map(d => d.id));
-      setClipboard(prev => prev.filter(item => !idsToRemove.has(item.id)));
-    } else {
-      setClipboard(prev => {
-        const existingIds = new Set(prev.map(i => i.id));
-        const toAdd = allInPage
-          .filter(d => !existingIds.has(d.id))
-          .map(d => ({ ...d, quantity: 1 }));
-        return [...prev, ...toAdd];
-      });
-    }
-  };
-
-  const updateClipboardQuantity = (id: string, qty: number) => {
-    setClipboard(prev => prev.map(item => 
-      item.id === id ? { ...item, quantity: Math.max(0.01, qty) } : item
-    ));
-  };
-
-  const clearClipboard = () => setClipboard([]);
-  const removeFromClipboard = (id: string) => setClipboard(prev => prev.filter(i => i.id !== id));
+  }, [filters, itemsPerPage]);
 
   const toggleSort = (key: keyof PriceEntry) => {
-    setSortConfig(prev => {
-      if (prev?.key === key) {
-        if (prev.direction === 'asc') return { key, direction: 'desc' };
-        return null;
-      }
-      return { key, direction: 'asc' };
-    });
+    if (sortKey === key) {
+      setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDirection('asc');
+    }
   };
 
   const handlePriceRangeChange = (type: 'min' | 'max', val: string) => {
@@ -121,224 +149,396 @@ export const PriceTracker = () => {
   };
 
   const handleTransferToFoodCost = () => {
-    localStorage.setItem('ccs_transfer_buffer', JSON.stringify(clipboard));
     navigate('/food-cost');
-  };
-
-  const renderSortIcon = (key: keyof PriceEntry) => {
-    if (sortConfig?.key !== key) return <span className="material-symbols-outlined text-[14px] opacity-20">unfold_more</span>;
-    return <span className="material-symbols-outlined text-[14px] text-primary">{sortConfig.direction === 'asc' ? 'expand_less' : 'expand_more'}</span>;
   };
 
   const clipboardTotal = useMemo(() => {
     return clipboard.reduce((acc, item) => acc + (item.price * item.quantity), 0);
   }, [clipboard]);
 
+  const countryFlag = (code: string) => {
+    const found = COUNTRIES.find(c => c.code === code);
+    return found ? found.flag : '🌐';
+  };
+
+  const getCategoryColor = (cat: string) => {
+    switch (cat) {
+      case 'Protein':
+        return 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800/40';
+      case 'Vegetable':
+        return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/40';
+      case 'Fruit':
+        return 'bg-pink-500/10 text-pink-700 dark:text-pink-400 border-pink-200 dark:border-pink-800/40';
+      case 'Dairy':
+        return 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/40';
+      case 'Grain':
+        return 'bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800/40';
+      case 'Spice/Herb':
+        return 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800/40';
+      case 'Oil/Fat':
+        return 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800/40';
+      default:
+        return 'bg-gray-500/10 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-800';
+    }
+  };
+
   return (
     <div className="flex h-full animate-fade-in overflow-hidden relative">
       {/* --- CENTER SECTION: PRICE TRACKER --- */}
       <div className="flex-1 overflow-y-auto p-4 lg:p-8 flex flex-col gap-6 scroll-smooth">
-        <div className="max-w-[1400px] mx-auto w-full flex flex-col gap-8 pb-20">
+        <div className="max-w-[1400px] mx-auto w-full flex flex-col gap-6 pb-24">
+          
           {/* Header */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div className="flex flex-col gap-1">
-              <h1 className="text-3xl lg:text-5xl font-black tracking-tight text-text-main dark:text-white uppercase leading-none">Price Tracker</h1>
-              <p className="text-text-muted text-sm lg:text-base">Monitoring global markets.</p>
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl lg:text-4xl font-black tracking-tight text-text-main dark:text-white uppercase leading-none">
+                  Price Tracker
+                </h1>
+                {dataSource === 'supabase' && (
+                  <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                    Live Supabase
+                  </span>
+                )}
+              </div>
+              <p className="text-text-muted text-xs lg:text-sm">
+                Global market database across 100 key ingredients & 7 benchmark countries.
+              </p>
             </div>
-            <div className="flex gap-2">
+            
+            <div className="flex items-center gap-2">
               <button 
                 onClick={() => setIsFilterExpanded(!isFilterExpanded)} 
-                className={`flex-1 md:flex-none h-12 px-4 rounded-xl border flex items-center justify-center gap-2 transition-all ${isFilterExpanded ? 'bg-primary border-primary text-black' : 'border-gray-200 dark:border-gray-700 text-text-muted'}`}
+                className={`h-11 px-4 rounded-xl border flex items-center justify-center gap-2 transition-all ${
+                  isFilterExpanded 
+                    ? 'bg-primary border-primary text-black font-black' 
+                    : 'border-gray-200 dark:border-gray-800 text-text-muted hover:border-gray-300 dark:hover:border-gray-700'
+                }`}
               >
-                <span className="material-symbols-outlined text-[20px]">tune</span>
+                <span className="material-symbols-outlined text-[18px]">tune</span>
                 <span className="text-[10px] font-black uppercase tracking-widest">Filters</span>
+                {(filters.country !== 'All' || filters.categories.length > 0 || filters.searchTerm) && (
+                  <span className="size-2 rounded-full bg-primary" />
+                )}
               </button>
-              <button onClick={() => setFilters({country: 'All', categories: [], suppliers: [], priceRange: [0, 50000], searchTerm: ''})} className="size-12 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-white/5 transition-all text-text-muted">
-                <span className="material-symbols-outlined text-[20px]">refresh</span>
+
+              <button 
+                onClick={() => loadPricesFromSupabase()} 
+                title="Sync from Supabase"
+                className="size-11 rounded-xl border border-gray-200 dark:border-gray-800 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-white/5 transition-all text-text-muted hover:text-text-main"
+              >
+                <span className={`material-symbols-outlined text-[18px] ${isLoadingDb ? 'animate-spin' : ''}`}>
+                  sync
+                </span>
               </button>
             </div>
           </div>
 
-          {/* Stats Panel (Grid on mobile) */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+          {/* Quick Stats Bar */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[
-              { label: 'Ingredients', val: '2100+', icon: 'restaurant', col: 'blue' },
-              { label: 'Countries', val: '7', icon: 'public', col: 'green' },
-              { label: 'Suppliers', val: '21', icon: 'store', col: 'amber' },
-              { label: 'Updated', val: 'Monthly', icon: 'history', col: 'purple' }
+              { label: 'Total Ingredients', val: `${activeDataset.length} items`, icon: 'inventory_2', col: 'text-blue-500 bg-blue-500/10' },
+              { label: 'Countries Covered', val: '7 Markets', icon: 'public', col: 'text-emerald-500 bg-emerald-500/10' },
+              { label: 'Distributors / Country', val: '3 Verified', icon: 'storefront', col: 'text-amber-500 bg-amber-500/10' },
+              { label: 'Update Cycle', val: 'Monthly', icon: 'update', col: 'text-purple-500 bg-purple-500/10' },
             ].map(stat => (
-              <div key={stat.label} className="bg-white dark:bg-surface-dark p-4 md:p-5 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm flex items-center gap-3 md:gap-4">
-                <div className={`size-10 md:size-12 rounded-xl bg-${stat.col}-500/10 text-${stat.col}-500 flex items-center justify-center`}>
-                  <span className="material-symbols-outlined text-[20px] md:text-[24px]">{stat.icon}</span>
+              <div key={stat.label} className="bg-white dark:bg-surface-dark p-3.5 md:p-4 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm flex items-center gap-3">
+                <div className={`size-9 rounded-lg ${stat.col} flex items-center justify-center shrink-0`}>
+                  <span className="material-symbols-outlined text-[18px]">{stat.icon}</span>
                 </div>
                 <div className="flex flex-col overflow-hidden">
-                  <span className="text-[8px] md:text-[10px] text-text-muted font-black uppercase tracking-widest truncate">{stat.label}</span>
-                  <span className="text-base md:text-xl font-black">{stat.val}</span>
+                  <span className="text-[9px] text-text-muted font-black uppercase tracking-wider truncate">{stat.label}</span>
+                  <span className="text-sm font-black truncate">{stat.val}</span>
                 </div>
               </div>
             ))}
           </div>
 
-          {/* Filter Panel */}
+          {/* Search & Sort Quick Controls */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted text-[18px]">
+                search
+              </span>
+              <input 
+                type="text"
+                value={filters.searchTerm}
+                onChange={(e) => setFilters(f => ({ ...f, searchTerm: e.target.value }))}
+                placeholder="Search by ingredient, category or distributor..."
+                className="w-full h-11 pl-10 pr-4 bg-white dark:bg-surface-dark rounded-xl border border-gray-200 dark:border-gray-800 text-xs font-bold focus:ring-1 focus:ring-primary focus:border-primary placeholder:font-normal"
+              />
+              {filters.searchTerm && (
+                <button 
+                  onClick={() => setFilters(f => ({ ...f, searchTerm: '' }))}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-main"
+                >
+                  <span className="material-symbols-outlined text-[16px]">close</span>
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <select
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value as keyof PriceEntry)}
+                className="h-11 px-3 bg-white dark:bg-surface-dark rounded-xl border border-gray-200 dark:border-gray-800 text-xs font-bold focus:ring-1 focus:ring-primary"
+              >
+                <option value="name">Sort: Ingredient Name</option>
+                <option value="price">Sort: Price</option>
+                <option value="category">Sort: Category</option>
+                <option value="country">Sort: Country</option>
+              </select>
+
+              <button
+                onClick={() => setSortDirection(d => d === 'asc' ? 'desc' : 'asc')}
+                className="size-11 rounded-xl bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-800 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-white/5 text-text-muted hover:text-text-main"
+                title={sortDirection === 'asc' ? 'Ascending' : 'Descending'}
+              >
+                <span className="material-symbols-outlined text-[18px]">
+                  {sortDirection === 'asc' ? 'arrow_upward' : 'arrow_downward'}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Filter Panel (Collapsible) */}
           {isFilterExpanded && (
-            <div className="bg-white dark:bg-surface-dark rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm animate-fade-in overflow-hidden">
-              <div className="p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-text-muted">Country</label>
+            <div className="bg-white dark:bg-surface-dark rounded-2xl border border-gray-200 dark:border-gray-800 p-5 shadow-sm space-y-5 animate-fade-in">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+                {/* Country Filter */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-text-muted">
+                    Filter by Country
+                  </label>
                   <select 
                     value={filters.country}
-                    onChange={(e) => setFilters(f => ({...f, country: e.target.value, suppliers: []}))}
-                    className="w-full h-11 bg-gray-50 dark:bg-white/5 rounded-xl px-4 text-sm font-bold border-none focus:ring-1 focus:ring-primary appearance-none cursor-pointer"
+                    onChange={(e) => setFilters(f => ({ ...f, country: e.target.value }))}
+                    className="w-full h-10 bg-gray-50 dark:bg-black/20 rounded-xl px-3 text-xs font-bold border border-gray-200 dark:border-gray-800 focus:ring-1 focus:ring-primary"
                   >
-                    <option value="All">All Countries</option>
-                    {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
+                    <option value="All">🌐 All Countries (7 Markets)</option>
+                    {COUNTRIES.map(c => (
+                      <option key={c.code} value={c.code}>
+                        {c.flag} {c.name} ({c.code})
+                      </option>
+                    ))}
                   </select>
                 </div>
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-text-muted">Price Range</label>
+
+                {/* Price Range Filter */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-text-muted">
+                    Price Range ({COUNTRIES.find(c => c.code === filters.country)?.symbol || '€'})
+                  </label>
                   <div className="flex items-center gap-2">
                     <input 
                       type="number" 
+                      min="0"
                       value={filters.priceRange[0]}
                       onChange={(e) => handlePriceRangeChange('min', e.target.value)}
-                      className="w-full h-11 bg-gray-50 dark:bg-white/5 rounded-xl px-3 text-xs font-mono border-none focus:ring-1 focus:ring-primary" 
+                      placeholder="Min"
+                      className="w-full h-10 bg-gray-50 dark:bg-black/20 rounded-xl px-3 text-xs font-mono border border-gray-200 dark:border-gray-800 focus:ring-1 focus:ring-primary" 
                     />
                     <span className="text-text-muted">—</span>
                     <input 
                       type="number" 
+                      min="0"
                       value={filters.priceRange[1]}
                       onChange={(e) => handlePriceRangeChange('max', e.target.value)}
-                      className="w-full h-11 bg-gray-50 dark:bg-white/5 rounded-xl px-3 text-xs font-mono border-none focus:ring-1 focus:ring-primary" 
+                      placeholder="Max"
+                      className="w-full h-10 bg-gray-50 dark:bg-black/20 rounded-xl px-3 text-xs font-mono border border-gray-200 dark:border-gray-800 focus:ring-1 focus:ring-primary" 
                     />
                   </div>
                 </div>
-                <div className="space-y-3 md:col-span-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-text-muted">Categories</label>
-                  <div className="flex flex-wrap gap-2">
-                    {CATEGORIES.map(cat => (
+
+                {/* Reset Action */}
+                <div className="flex flex-col justify-end">
+                  <button 
+                    onClick={() => setFilters({
+                      country: 'All',
+                      categories: [],
+                      suppliers: [],
+                      priceRange: [0, 50000],
+                      searchTerm: ''
+                    })}
+                    className="h-10 px-4 rounded-xl border border-gray-200 dark:border-gray-800 text-xs font-bold hover:bg-gray-50 dark:hover:bg-white/5 transition-all text-text-muted hover:text-text-main flex items-center justify-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">restart_alt</span>
+                    Reset All Filters
+                  </button>
+                </div>
+              </div>
+
+              {/* Categories Pills */}
+              <div className="space-y-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+                <label className="text-[10px] font-black uppercase tracking-widest text-text-muted">
+                  Categories
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {CATEGORIES.map(cat => {
+                    const isSelected = filters.categories.includes(cat);
+                    return (
                       <button 
                         key={cat}
                         onClick={() => setFilters(f => ({
                           ...f, 
-                          categories: f.categories.includes(cat) ? f.categories.filter(c => c !== cat) : [...f.categories, cat]
+                          categories: isSelected ? f.categories.filter(c => c !== cat) : [...f.categories, cat]
                         }))}
-                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all border ${
-                          filters.categories.includes(cat) ? 'bg-primary border-primary text-black' : 'bg-gray-50 dark:bg-white/5 border-gray-100 dark:border-gray-800 text-text-muted hover:border-primary/50'
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border ${
+                          isSelected 
+                            ? 'bg-primary border-primary text-black' 
+                            : 'bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-gray-800 text-text-muted hover:border-gray-400'
                         }`}
                       >
                         {cat}
                       </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="space-y-3 xl:col-span-4">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-text-muted">Search Ingredients</label>
-                    {filters.searchTerm && <span className="text-[10px] text-primary font-bold">{sortedData.length} matches</span>}
-                  </div>
-                  <div className="relative">
-                    <input 
-                      value={filters.searchTerm}
-                      onChange={(e) => setFilters(f => ({...f, searchTerm: e.target.value}))}
-                      className="w-full h-12 pl-12 pr-4 bg-gray-50 dark:bg-white/5 rounded-xl border-none focus:ring-1 focus:ring-primary text-sm font-bold"
-                      placeholder="Search items..." 
-                    />
-                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-text-muted">search</span>
-                  </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
           )}
 
-          {/* Table */}
-          <div className="bg-white dark:bg-surface-dark rounded-2xl border border-gray-100 dark:border-gray-800 shadow-xl overflow-hidden">
-            <div className="overflow-x-auto no-scrollbar">
-              <table className="w-full text-left border-collapse min-w-[900px]">
-                <thead>
-                  <tr className="bg-gray-50 dark:bg-white/5 border-b border-gray-100 dark:border-gray-800">
-                    <th className="p-4 w-12 text-center">
-                      <input 
-                        type="checkbox" 
-                        checked={paginatedData.length > 0 && paginatedData.every(d => selectedRowIds.has(d.id))} 
-                        onChange={handleSelectAll}
-                        className="rounded border-gray-300 text-primary focus:ring-primary" 
-                      />
-                    </th>
-                    <th className="p-4 cursor-pointer hover:bg-black/5" onClick={() => toggleSort('name')}>
-                      <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-text-muted">Ingredient {renderSortIcon('name')}</div>
-                    </th>
-                    <th className="p-4 cursor-pointer hover:bg-black/5" onClick={() => toggleSort('category')}>
-                      <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-text-muted text-center justify-center">Category {renderSortIcon('category')}</div>
-                    </th>
-                    <th className="p-4 cursor-pointer hover:bg-black/5 text-right" onClick={() => toggleSort('price')}>
-                      <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-text-muted justify-end">Unit Price {renderSortIcon('price')}</div>
-                    </th>
-                    <th className="p-4 text-center">
-                      <div className="text-[10px] font-black uppercase tracking-widest text-text-muted">Trend</div>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                  {paginatedData.map(entry => (
-                    <tr key={entry.id} className={`hover:bg-primary/5 transition-colors group ${selectedRowIds.has(entry.id) ? 'bg-primary/5' : ''}`}>
-                      <td className="p-4 text-center">
-                        <input 
-                          type="checkbox" 
-                          checked={selectedRowIds.has(entry.id)} 
-                          onChange={() => handleToggleRow(entry)}
-                          className="rounded border-gray-300 text-primary focus:ring-primary" 
-                        />
-                      </td>
-                      <td className="p-4">
-                        <div className="flex flex-col">
-                          <span className="text-sm font-black group-hover:text-primary transition-colors">{entry.name}</span>
-                          <span className="text-[9px] text-text-muted font-bold uppercase tracking-widest">{entry.supplier} • {entry.unit}</span>
-                        </div>
-                      </td>
-                      <td className="p-4 text-center">
-                        <span className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-wider ${
-                          entry.category === 'Protein' ? 'bg-blue-100 text-blue-700' :
-                          entry.category === 'Vegetable' ? 'bg-green-100 text-green-700' :
-                          entry.category === 'Fruit' ? 'bg-pink-100 text-pink-700' :
-                          entry.category === 'Dairy' ? 'bg-amber-100 text-amber-700' :
-                          entry.category === 'Grain' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-700'
-                        }`}>
-                          {entry.category}
-                        </span>
-                      </td>
-                      <td className="p-4 text-right font-mono">
-                        <span className="text-sm font-black">{entry.currency}{entry.price.toFixed(2)}</span>
-                      </td>
-                      <td className="p-4 text-center">
-                         <div className="flex flex-col items-center">
-                            {entry.trend === 'up' && <span className="text-red-500 material-symbols-outlined text-[16px] font-black">trending_up</span>}
-                            {entry.trend === 'down' && <span className="text-green-500 material-symbols-outlined text-[16px] font-black">trending_down</span>}
-                            {entry.trend === 'stable' && <span className="text-gray-400 material-symbols-outlined text-[16px] font-black">trending_flat</span>}
-                            <span className={`text-[9px] font-bold ${entry.trend === 'up' ? 'text-red-500' : entry.trend === 'down' ? 'text-green-500' : 'text-gray-400'}`}>
-                              {entry.trendValue}
-                            </span>
-                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          {/* Results Summary Bar */}
+          <div className="flex items-center justify-between px-1">
+            <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider">
+              Showing <strong className="text-text-main dark:text-white font-black">{paginatedData.length}</strong> of <strong className="text-text-main dark:text-white font-black">{sortedData.length}</strong> items
+            </span>
             
-            <div className="p-6 bg-gray-50 dark:bg-white/5 border-t border-gray-100 dark:border-gray-800 flex flex-col md:flex-row items-center justify-between gap-6">
-               <div className="flex items-center gap-4">
-                 <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">Showing {Math.min(sortedData.length, itemsPerPage)} of {sortedData.length}</span>
-               </div>
-               <div className="flex items-center gap-3">
-                 <button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)} className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-black uppercase tracking-widest disabled:opacity-50 hover:bg-white dark:hover:bg-white/5 transition-all">Previous</button>
-                 <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)} className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-black uppercase tracking-widest disabled:opacity-50 hover:bg-white dark:hover:bg-white/5 transition-all">Next</button>
-               </div>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-[10px] uppercase font-bold text-text-muted">Per page:</span>
+              {[20, 30, 50].map(sz => (
+                <button
+                  key={sz}
+                  onClick={() => setItemsPerPage(sz)}
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                    itemsPerPage === sz ? 'bg-primary text-black' : 'text-text-muted hover:text-text-main'
+                  }`}
+                >
+                  {sz}
+                </button>
+              ))}
             </div>
           </div>
+
+          {/* --- 2-COLUMN COMPACT GRID (4 COLUMNS PER ITEM: INGREDIENT, COUNTRY, CATEGORY, PRICE) --- */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {paginatedData.map(entry => {
+              const isSelected = selectedRowIds.has(entry.id);
+              return (
+                <div 
+                  key={entry.id}
+                  onClick={() => toggleClipboardItem(entry)}
+                  className={`group cursor-pointer p-3.5 rounded-xl border transition-all duration-150 flex items-center justify-between gap-3 ${
+                    isSelected 
+                      ? 'bg-primary/10 border-primary shadow-sm' 
+                      : 'bg-white dark:bg-surface-dark border-gray-200/80 dark:border-gray-800 hover:border-primary/40 hover:bg-gray-50/50 dark:hover:bg-white/[0.02]'
+                  }`}
+                >
+                  {/* Left: Checkbox + Column 1: Ingredient & Supplier/Unit */}
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleClipboardItem(entry);
+                      }}
+                      className={`size-5 rounded flex items-center justify-center shrink-0 border transition-all ${
+                        isSelected 
+                          ? 'bg-primary border-primary text-black' 
+                          : 'border-gray-300 dark:border-gray-700 bg-transparent group-hover:border-primary'
+                      }`}
+                    >
+                      {isSelected && (
+                        <span className="material-symbols-outlined text-[16px] font-black leading-none">
+                          check
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-xs font-black text-text-main dark:text-white truncate group-hover:text-primary transition-colors">
+                        {entry.name}
+                      </span>
+                      <span className="text-[10px] text-text-muted truncate font-medium">
+                        {entry.supplier} • {entry.unit}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Middle: Column 2: Country & Column 3: Category */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* Country */}
+                    <div 
+                      className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-100 dark:bg-white/5 text-[10px] font-bold text-text-main dark:text-gray-300"
+                      title={`${entry.country} (${entry.countryCode})`}
+                    >
+                      <span className="text-[11px]">{countryFlag(entry.countryCode)}</span>
+                      <span className="uppercase text-[9px] font-black">{entry.countryCode}</span>
+                    </div>
+
+                    {/* Category Badge */}
+                    <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wide border ${getCategoryColor(entry.category)}`}>
+                      {entry.category}
+                    </span>
+                  </div>
+
+                  {/* Right: Column 4: Price */}
+                  <div className="text-right shrink-0 min-w-[75px]">
+                    <span className="text-xs font-black font-mono tracking-tight text-text-main dark:text-white">
+                      {entry.currency}{entry.price.toFixed(2)}
+                    </span>
+                    <span className="block text-[9px] text-text-muted font-medium">
+                      /{entry.unit}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+
+            {paginatedData.length === 0 && (
+              <div className="col-span-full py-16 bg-white dark:bg-surface-dark rounded-2xl border border-gray-200 dark:border-gray-800 flex flex-col items-center justify-center text-center p-6 gap-3">
+                <span className="material-symbols-outlined text-4xl text-text-muted">search_off</span>
+                <p className="text-sm font-bold text-text-main dark:text-white">No ingredients found</p>
+                <p className="text-xs text-text-muted">Try changing your search terms or resetting filters.</p>
+                <button
+                  onClick={() => setFilters({ country: 'All', categories: [], suppliers: [], priceRange: [0, 50000], searchTerm: '' })}
+                  className="mt-2 px-4 py-2 bg-primary text-black rounded-xl text-xs font-black uppercase tracking-wider"
+                >
+                  Clear Filters
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-2">
+              <span className="text-xs text-text-muted font-medium">
+                Page {currentPage} of {totalPages}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(p => p - 1)}
+                  className="px-3.5 py-2 rounded-xl border border-gray-200 dark:border-gray-800 text-xs font-bold disabled:opacity-30 hover:bg-white dark:hover:bg-surface-dark transition-all"
+                >
+                  Previous
+                </button>
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(p => p + 1)}
+                  className="px-3.5 py-2 rounded-xl border border-gray-200 dark:border-gray-800 text-xs font-bold disabled:opacity-30 hover:bg-white dark:hover:bg-surface-dark transition-all"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
 
-      {/* --- RIGHT SIDEBAR: CLIPBOARD PANEL (Fixed on Mobile) --- */}
+      {/* --- RIGHT SIDEBAR: UNIFIED PERSISTENT CLIPBOARD --- */}
       {isClipboardExpanded && (
         <div 
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[65] md:hidden transition-opacity duration-300"
@@ -347,98 +547,155 @@ export const PriceTracker = () => {
       )}
 
       <aside className={`
-        ${isClipboardExpanded ? 'w-[calc(100%-64px)] md:w-80' : 'w-12'} 
+        ${isClipboardExpanded ? 'w-[calc(100%-48px)] md:w-80' : 'w-12'} 
         bg-surface-light dark:bg-surface-dark border-l border-gray-200 dark:border-gray-800 
         flex flex-col h-full shrink-0 transition-all duration-300 
         fixed md:relative right-0 top-0 z-[70] shadow-2xl md:shadow-none
       `}>
         {isClipboardExpanded ? (
           <div className="flex flex-col h-full overflow-hidden animate-fade-in">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
-               <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-primary">shopping_basket</span>
-                  <h2 className="text-sm font-black uppercase tracking-widest">Clipboard</h2>
-               </div>
-               <button onClick={() => setIsClipboardExpanded(false)} className="text-text-muted hover:text-text-main">
-                 <span className="material-symbols-outlined">chevron_right</span>
-               </button>
+            {/* Sidebar Header */}
+            <div className="p-4 md:p-5 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <span className="material-symbols-outlined text-primary text-[20px]">shopping_basket</span>
+                <h2 className="text-xs font-black uppercase tracking-widest">Clipboard</h2>
+                <span className="px-2 py-0.5 rounded-full bg-primary/20 text-primary text-[10px] font-black">
+                  {clipboard.length}
+                </span>
+              </div>
+              <button 
+                onClick={() => setIsClipboardExpanded(false)} 
+                className="text-text-muted hover:text-text-main size-8 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-white/5"
+              >
+                <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+              </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
-              <div className="bg-primary/5 rounded-2xl p-5 border border-primary/20 flex flex-col gap-1">
-                 <span className="text-[10px] font-black uppercase tracking-widest text-primary">Summary</span>
-                 <div className="flex justify-between items-end">
-                    <span className="text-2xl font-black">{clipboard.length} Items</span>
-                    <span className="text-lg font-black text-primary font-mono">{clipboard[0]?.currency || '€'}{clipboardTotal.toFixed(2)}</span>
-                 </div>
+            {/* Sidebar Content */}
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+              
+              {/* Summary Card */}
+              <div className="bg-primary/10 rounded-xl p-4 border border-primary/20 flex flex-col gap-1">
+                <span className="text-[9px] font-black uppercase tracking-widest text-primary">Clipboard Total</span>
+                <div className="flex justify-between items-end">
+                  <span className="text-xl font-black">{clipboard.length} Selected</span>
+                  <span className="text-base font-black text-primary font-mono">
+                    {clipboard[0]?.currency || '€'}{clipboardTotal.toFixed(2)}
+                  </span>
+                </div>
               </div>
 
-              <div className="flex-1 space-y-4">
-                 <div className="flex items-center justify-between">
-                   <h4 className="text-[10px] font-black uppercase tracking-widest text-text-muted">Selection List</h4>
-                   {clipboard.length > 0 && <button onClick={clearClipboard} className="text-[9px] font-black text-red-500 uppercase hover:underline">Clear All</button>}
-                 </div>
-                 <div className="space-y-3">
-                   {clipboard.map(item => (
-                      <div key={item.id} className="p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-100 dark:border-gray-800 flex flex-col gap-3 group animate-fade-in">
-                         <div className="flex items-start justify-between">
-                            <div className="flex flex-col overflow-hidden max-w-[80%]">
-                               <span className="text-sm font-black truncate">{item.name}</span>
-                               <span className="text-[10px] text-text-muted uppercase font-bold tracking-tight">
-                                  {item.supplier} • {item.currency}{item.price}/{item.unit}
-                               </span>
-                            </div>
-                            <button onClick={() => removeFromClipboard(item.id)} className="text-gray-300 hover:text-red-500 transition-colors">
-                               <span className="material-symbols-outlined text-[18px]">close</span>
-                            </button>
-                         </div>
-                         <div className="flex items-center justify-between gap-4 pt-2 border-t border-gray-100 dark:border-gray-800/50">
-                            <div className="flex flex-col gap-1">
-                               <span className="text-[9px] font-black text-text-muted uppercase">Qty</span>
-                               <input 
-                                  type="number"
-                                  min="0.01"
-                                  step="0.1"
-                                  value={item.quantity}
-                                  onChange={(e) => updateClipboardQuantity(item.id, parseFloat(e.target.value) || 0)}
-                                  className="w-16 h-8 bg-white dark:bg-black/20 border border-gray-200 dark:border-gray-700 rounded-lg px-2 text-xs font-black outline-none focus:ring-1 focus:ring-primary"
-                               />
-                            </div>
-                            <div className="flex flex-col items-end gap-1">
-                               <span className="text-[9px] font-black text-text-muted uppercase">Subtotal</span>
-                               <span className="text-sm font-black font-mono">{item.currency}{(item.price * item.quantity).toFixed(2)}</span>
-                            </div>
-                         </div>
+              {/* Items List */}
+              <div className="flex-1 space-y-3">
+                <div className="flex items-center justify-between px-1">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-text-muted">Selected Items</h4>
+                  {clipboard.length > 0 && (
+                    <button 
+                      onClick={clearClipboard} 
+                      className="text-[9px] font-black text-red-500 uppercase hover:underline"
+                    >
+                      Clear All
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-2.5">
+                  {clipboard.map(item => (
+                    <div 
+                      key={item.id} 
+                      className="p-3 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-100 dark:border-gray-800 flex flex-col gap-2 group animate-fade-in"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-xs font-black truncate">{item.name}</span>
+                          <span className="text-[9px] text-text-muted truncate font-medium">
+                            {item.supplier} • {item.currency}{item.price.toFixed(2)}/{item.unit}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {/* Duplicate Item Button */}
+                          <button 
+                            onClick={() => duplicateClipboardItem(item.id)} 
+                            className="text-gray-400 hover:text-primary transition-colors p-1"
+                            title="Duplicate item"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">content_copy</span>
+                          </button>
+                          {/* Remove Item Button */}
+                          <button 
+                            onClick={() => removeFromClipboard(item.id)} 
+                            className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                            title="Remove item"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">close</span>
+                          </button>
+                        </div>
                       </div>
-                   ))}
-                   {clipboard.length === 0 && (
-                     <div className="py-12 flex flex-col items-center justify-center text-center opacity-30 gap-3 grayscale">
-                       <span className="material-symbols-outlined text-4xl">inventory_2</span>
-                       <p className="text-[10px] font-black uppercase tracking-widest">Empty</p>
-                     </div>
-                   )}
-                 </div>
+
+                      <div className="flex items-center justify-between gap-3 pt-2 border-t border-gray-200/60 dark:border-gray-800">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[9px] font-black text-text-muted uppercase">Qty ({item.unit})</span>
+                          <input 
+                            type="number"
+                            min="0.01"
+                            step="0.1"
+                            value={item.quantity}
+                            onChange={(e) => updateClipboardQuantity(item.id, parseFloat(e.target.value) || 0)}
+                            className="w-16 h-7 bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-700 rounded-md px-2 text-xs font-black text-center outline-none focus:border-primary"
+                          />
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs font-black font-mono">
+                            {item.currency}{(item.price * item.quantity).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {clipboard.length === 0 && (
+                    <div className="py-12 flex flex-col items-center justify-center text-center opacity-40 gap-2">
+                      <span className="material-symbols-outlined text-3xl">shopping_cart_checkout</span>
+                      <p className="text-[10px] font-black uppercase tracking-widest">No items selected</p>
+                      <p className="text-[10px] text-text-muted max-w-[180px]">
+                        Click on any ingredient card to add it to your clipboard.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="p-6 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-black/20">
-               <button 
+            {/* Sidebar Footer Action */}
+            <div className="p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-black/20">
+              <button 
                 disabled={clipboard.length === 0}
                 onClick={handleTransferToFoodCost}
-                className="w-full bg-primary text-black py-4 rounded-xl font-black uppercase tracking-widest text-xs shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-               >
-                 <span className="material-symbols-outlined">output</span> Transfer
-               </button>
+                className="w-full bg-primary text-black py-3 rounded-xl font-black uppercase tracking-wider text-xs shadow-md shadow-primary/20 hover:brightness-105 active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined text-[18px]">restaurant_menu</span>
+                Add to Food Cost
+              </button>
             </div>
           </div>
         ) : (
           <button 
             onClick={() => setIsClipboardExpanded(true)}
-            className="w-full h-full flex flex-col items-center py-8 gap-12 group transition-colors hover:bg-primary/5"
+            className="w-full h-full flex flex-col items-center py-6 gap-8 group transition-colors hover:bg-primary/5"
+            title="Open Clipboard"
           >
-            <span className="material-symbols-outlined text-text-muted group-hover:text-primary transition-colors">chevron_left</span>
-            <div className="rotate-90 origin-center whitespace-nowrap">
-              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-text-muted group-hover:text-primary transition-colors">Clipboard ({clipboard.length})</span>
+            <span className="material-symbols-outlined text-text-muted group-hover:text-primary transition-colors text-[20px]">
+              chevron_left
+            </span>
+            <div className="rotate-90 origin-center whitespace-nowrap flex items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-[0.25em] text-text-muted group-hover:text-primary transition-colors">
+                Clipboard
+              </span>
+              {clipboard.length > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-primary text-black text-[9px] font-black leading-none">
+                  {clipboard.length}
+                </span>
+              )}
             </div>
           </button>
         )}
