@@ -43,15 +43,16 @@ export const AuthModals: React.FC<AuthModalsProps> = ({ onClose }) => {
   };
 
   const verifyPromo = async () => {
-    if (!formData.promoCode) return;
+    if (!formData.promoCode.trim()) return;
     setLoading(true);
     setAuthError(null);
     
     try {
+      const codeClean = formData.promoCode.trim().toUpperCase();
       const { data, error } = await supabase
         .from('promo_codes')
         .select('*')
-        .eq('code', formData.promoCode.toUpperCase())
+        .eq('code', codeClean)
         .single();
 
       if (error || !data) {
@@ -59,15 +60,20 @@ export const AuthModals: React.FC<AuthModalsProps> = ({ onClose }) => {
         return;
       }
 
-      if (data.current_uses >= data.max_uses) {
-        setAuthError(t('subscription.promoError'));
+      if (!data.is_active) {
+        setAuthError('This promo code is currently inactive.');
+        return;
+      }
+
+      if (data.max_uses > 0 && data.current_uses >= data.max_uses) {
+        setAuthError('This promo code has reached its maximum redemptions.');
         return;
       }
 
       setPromoApplied(true);
-      setFormData({ ...formData, plan: data.plan_to_grant as PlanTier });
+      const grantedTier = data.tier === 'platinum_prime' ? PlanTier.PLATINUM_PRIME : PlanTier.PRIME;
+      setFormData(prev => ({ ...prev, plan: grantedTier }));
       setAuthError(null);
-      alert(`${t('subscription.promoSuccess')} Plan: ${data.plan_to_grant}`);
     } catch (err) {
       setAuthError(t('subscription.promoError'));
     } finally {
@@ -86,22 +92,25 @@ export const AuthModals: React.FC<AuthModalsProps> = ({ onClose }) => {
     setLoading(true);
 
     try {
-      if (promoApplied) {
+      let promoRecord: any = null;
+      if (promoApplied && formData.promoCode) {
         const { data: promo } = await supabase
           .from('promo_codes')
           .select('*')
-          .eq('code', formData.promoCode.toUpperCase())
+          .eq('code', formData.promoCode.trim().toUpperCase())
           .single();
         
-        if (!promo || promo.current_uses >= promo.max_uses) {
+        if (!promo || !promo.is_active || (promo.max_uses > 0 && promo.current_uses >= promo.max_uses)) {
           setAuthError(t('subscription.promoError'));
           setLoading(false);
           setPromoApplied(false);
           return;
         }
+        promoRecord = promo;
       }
 
       // Supabase v2 signUp signature
+      const selectedPlan = promoRecord ? (promoRecord.tier || PlanTier.PLATINUM_PRIME) : formData.plan;
       const { data: { user, session }, error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -110,7 +119,7 @@ export const AuthModals: React.FC<AuthModalsProps> = ({ onClose }) => {
             username: formData.username,
             full_name: formData.fullName,
             chef_name: formData.chefName || 'Chef ' + formData.fullName,
-            tier: formData.plan
+            tier: selectedPlan
           }
         }
       });
@@ -118,8 +127,32 @@ export const AuthModals: React.FC<AuthModalsProps> = ({ onClose }) => {
       if (error) {
         setAuthError(error.message);
       } else if (user) {
-        if (promoApplied) {
-          await supabase.rpc('increment_promo_use', { promo_code: formData.promoCode.toUpperCase() });
+        if (promoRecord) {
+          // Increment promo use & insert redemption
+          await supabase
+            .from('promo_codes')
+            .update({ current_uses: (promoRecord.current_uses || 0) + 1 })
+            .eq('id', promoRecord.id);
+
+          await supabase
+            .from('promo_redemptions')
+            .insert({
+              promo_id: promoRecord.id,
+              user_id: user.id,
+              redeemed_at: new Date().toISOString()
+            });
+
+          const renewalDate = new Date();
+          renewalDate.setMonth(renewalDate.getMonth() + (promoRecord.duration_months || 3));
+
+          await supabase
+            .from('profiles')
+            .update({
+              tier: promoRecord.tier || PlanTier.PLATINUM_PRIME,
+              subscription_status: 'active',
+              subscription_renewal: renewalDate.toISOString()
+            })
+            .eq('id', user.id);
         }
         
         if (!session) {
@@ -136,9 +169,9 @@ export const AuthModals: React.FC<AuthModalsProps> = ({ onClose }) => {
   };
 
   const plans = [
-    { id: PlanTier.FREE, name: t('subscription.freePlan'), price: 'Free' },
-    { id: PlanTier.PLATINUM, name: t('subscription.platinum'), price: '€14.99/mo' },
-    { id: PlanTier.PLATINUM_PRIME, name: t('subscription.platinum_prime'), price: '€29.99/mo' }
+    { id: PlanTier.FREE, name: t('subscription.freePlan'), price: '0€ / mo', desc: '5 recipes, community & basic tools' },
+    { id: PlanTier.PRIME, name: 'Prime', price: '9€ / mo', desc: '30 recipes & food costs, 10 pairings, market tracker' },
+    { id: PlanTier.PLATINUM_PRIME, name: 'Platinum Prime', price: '25€ / mo', desc: 'Unlimited intelligence, all 9 languages & full R&D suite' }
   ];
 
   return (

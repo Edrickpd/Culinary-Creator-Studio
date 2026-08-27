@@ -157,7 +157,7 @@ const TOPICS_HIERARCHY: Record<string, Subtopic[]> = {
 const ALL_TOPICS = Object.values(TOPICS_HIERARCHY).flat();
 
 export const FoodHistory = () => {
-  const { user, isLoggedIn } = useAppContext();
+  const { t, user, isLoggedIn } = useAppContext();
   
   // --- STATE ---
   const [activeCategory, setActiveCategory] = useState('INGREDIENTS');
@@ -329,7 +329,9 @@ export const FoodHistory = () => {
       {/* HEADER */}
       <header className="p-4 md:p-8 bg-white dark:bg-surface-dark border-b border-[#E5E7EB] dark:border-gray-800 shrink-0">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-6">
-          <h1 className="text-2xl md:text-4xl font-black uppercase tracking-tighter">Culinary Encyclopedia</h1>
+          <h1 className="text-2xl md:text-4xl font-black uppercase tracking-tighter">
+            {t('foodHistory.title') || "Culinary Encyclopedia"}
+          </h1>
           
           <div className="flex items-center gap-3 w-full lg:w-auto">
             {/* My Library Button */}
@@ -339,13 +341,15 @@ export const FoodHistory = () => {
                 className={`h-11 px-3 md:px-4 rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${showLibrary ? 'bg-primary text-black' : 'bg-gray-100 dark:bg-white/5 text-gray-500 hover:text-black shadow-sm'}`}
               >
                 <span className="material-symbols-outlined text-[20px]">library_books</span>
-                <span className="hidden sm:block">My Library</span>
+                <span className="hidden sm:block">{t('foodHistory.myLibrary') || "My Library"}</span>
                 <span className="bg-primary/20 dark:bg-white/10 px-2 py-0.5 rounded-full text-[9px]">{savedTopics.length}</span>
               </button>
 
               {showLibrary && (
                 <div className="absolute top-14 left-0 w-64 bg-white dark:bg-surface-dark rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-800 z-[100] animate-fade-in py-4 max-h-80 overflow-y-auto">
-                  <h4 className="px-5 pb-3 text-[10px] font-black uppercase text-primary border-b border-gray-50 dark:border-gray-800 mb-2">Saved Archives</h4>
+                  <h4 className="px-5 pb-3 text-[10px] font-black uppercase text-primary border-b border-gray-50 dark:border-gray-800 mb-2">
+                    {t('foodHistory.savedArchives') || "Saved Archives"}
+                  </h4>
                   {libraryTopics.length > 0 ? libraryTopics.map(t => (
                     <button 
                       key={t.id}
@@ -355,7 +359,9 @@ export const FoodHistory = () => {
                       <span>{t.icon}</span> {t.title}
                     </button>
                   )) : (
-                    <p className="px-5 py-8 text-center text-[10px] text-text-muted font-black uppercase">Your library is empty.</p>
+                    <p className="px-5 py-8 text-center text-[10px] text-text-muted font-black uppercase">
+                      {t('foodHistory.libraryEmpty') || "Your library is empty."}
+                    </p>
                   )}
                 </div>
               )}
@@ -365,7 +371,7 @@ export const FoodHistory = () => {
               <input 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search category topics..."
+                placeholder={t('foodHistory.searchPlaceholder') || "Search category topics..."}
                 className="w-full h-11 pl-11 pr-4 bg-[#F3F4F6] dark:bg-white/5 rounded-xl border-none focus:ring-1 focus:ring-primary text-sm"
               />
               <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">search</span>

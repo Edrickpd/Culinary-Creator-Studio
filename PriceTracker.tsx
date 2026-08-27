@@ -1,13 +1,17 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MOCK_PRICE_ENTRIES, COUNTRIES, CATEGORIES } from '../constants';
-import { PriceEntry, FilterState } from '../types';
+import { PriceEntry, FilterState, PlanTier } from '../types';
 import { useAppContext } from '../AppContext';
 import { supabase } from '../supabaseClient';
+import { PlanUpgradeModal } from '../components/PlanUpgradeModal';
+import { normalizeTier } from '../services/planLimits';
 
 export const PriceTracker = () => {
   const navigate = useNavigate();
   const {
+    t,
+    user,
     clipboard,
     toggleClipboardItem,
     updateClipboardQuantity,
@@ -17,6 +21,10 @@ export const PriceTracker = () => {
     isClipboardExpanded,
     setIsClipboardExpanded
   } = useAppContext();
+
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const currentTier = normalizeTier(user?.tier);
+  const isFreePlan = currentTier === PlanTier.FREE;
 
   // --- STATE ---
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
@@ -182,6 +190,51 @@ export const PriceTracker = () => {
     }
   };
 
+  if (isFreePlan) {
+    return (
+      <div className="p-4 md:p-8 lg:p-12 animate-fade-in max-w-5xl mx-auto space-y-8">
+        <PlanUpgradeModal
+          isOpen={showUpgradeModal}
+          onClose={() => setShowUpgradeModal(false)}
+          title="Unlock Global Market Price Tracker"
+          description="Global commodity prices across 100 key ingredients and 7 benchmark markets are accessible on Prime (9€) and Platinum Prime (25€) plans."
+          requiredTier={PlanTier.PRIME}
+        />
+
+        <header className="space-y-2">
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl md:text-5xl font-black uppercase tracking-tight">Market Price Tracker</h1>
+            <span className="px-3 py-1 bg-amber-500/10 text-amber-500 rounded-full text-xs font-black uppercase tracking-widest flex items-center gap-1">
+              <span className="material-symbols-outlined text-sm">lock</span> Prime & Platinum
+            </span>
+          </div>
+          <p className="text-text-muted text-lg">Global market prices, distributor benchmarks, and cost analysis tools.</p>
+        </header>
+
+        <div className="bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-800 rounded-3xl p-8 md:p-12 shadow-xl text-center space-y-6 max-w-2xl mx-auto">
+          <div className="size-20 rounded-3xl bg-primary/10 text-primary flex items-center justify-center mx-auto shadow-inner">
+            <span className="material-symbols-outlined text-4xl">monitoring</span>
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-2xl font-black uppercase tracking-tight">Real-Time Commodity Benchmarks</h3>
+            <p className="text-sm text-text-muted leading-relaxed font-medium">
+              Access real-time price tracking across 7 countries (ES, US, FR, IT, MX, JP, UK), multi-supplier comparisons, unit pricing, and instant clipboard transfer to Food Cost sheets.
+            </p>
+          </div>
+
+          <div className="pt-4 flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              onClick={() => setShowUpgradeModal(true)}
+              className="px-8 py-3.5 bg-primary text-black rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary-hover shadow-lg shadow-primary/25 transition-all"
+            >
+              Upgrade to Prime or Enter Promo Code
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full animate-fade-in overflow-hidden relative">
       {/* --- CENTER SECTION: PRICE TRACKER --- */}
@@ -193,7 +246,7 @@ export const PriceTracker = () => {
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl lg:text-4xl font-black tracking-tight text-text-main dark:text-white uppercase leading-none">
-                  Price Tracker
+                  {t('priceTracker.title') || "Price Tracker"}
                 </h1>
                 {dataSource === 'supabase' && (
                   <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
@@ -202,7 +255,7 @@ export const PriceTracker = () => {
                 )}
               </div>
               <p className="text-text-muted text-xs lg:text-sm">
-                Global market database across 100 key ingredients & 7 benchmark countries.
+                {t('priceTracker.subtitle') || "Global market database across 100 key ingredients & 7 benchmark countries."}
               </p>
             </div>
             
@@ -216,7 +269,7 @@ export const PriceTracker = () => {
                 }`}
               >
                 <span className="material-symbols-outlined text-[18px]">tune</span>
-                <span className="text-[10px] font-black uppercase tracking-widest">Filters</span>
+                <span className="text-[10px] font-black uppercase tracking-widest">{t('priceTracker.filters') || "Filters"}</span>
                 {(filters.country !== 'All' || filters.categories.length > 0 || filters.searchTerm) && (
                   <span className="size-2 rounded-full bg-primary" />
                 )}

@@ -961,56 +961,6 @@ export const FoodCost = () => {
 
             {/* Top Action Buttons */}
             <div className="flex items-center gap-2 flex-wrap">
-              {/* Currency Selector Pill */}
-              <div className="relative">
-                <button
-                  onClick={() => setIsCurrencyDropdownOpen(!isCurrencyDropdownOpen)}
-                  className="h-11 px-3.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-surface-dark hover:border-primary text-text-main dark:text-white font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm"
-                  title="Change Currency"
-                >
-                  <span className="material-symbols-outlined text-[16px] text-primary">payments</span>
-                  <span>{activeCurr}</span>
-                  <span className="material-symbols-outlined text-[14px] text-text-muted">expand_more</span>
-                </button>
-
-                {isCurrencyDropdownOpen && (
-                  <div className="absolute right-0 top-12 z-50 bg-white dark:bg-surface-dark p-2 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl w-44 space-y-1 animate-fade-in">
-                    <span className="text-[9px] font-black uppercase tracking-wider text-text-muted px-2 block py-1">
-                      {t('foodCost.currency')}
-                    </span>
-                    {CURRENCY_OPTIONS.map(opt => (
-                      <button
-                        key={opt.symbol}
-                        onClick={() => {
-                          setCurrency(opt.symbol);
-                          setIsCurrencyDropdownOpen(false);
-                        }}
-                        className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between transition-colors ${
-                          activeCurr === opt.symbol
-                            ? 'bg-primary text-black font-black'
-                            : 'hover:bg-gray-100 dark:hover:bg-white/5 text-text-main dark:text-gray-300'
-                        }`}
-                      >
-                        <span>{opt.label}</span>
-                        {activeCurr === opt.symbol && (
-                          <span className="material-symbols-outlined text-[14px]">check</span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Batch Scaler Button */}
-              <button 
-                onClick={() => setIsScalerModalOpen(true)}
-                className="h-11 px-3.5 rounded-xl border border-primary/40 bg-primary/10 hover:bg-primary hover:text-black text-primary font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm"
-                title="Scale batch portions or ingredient quantities"
-              >
-                <span className="material-symbols-outlined text-[18px]">aspect_ratio</span>
-                {t('foodCost.scaleBatch')} ({servings}p)
-              </button>
-
               <button 
                 onClick={handleResetEntireTemplate}
                 className="h-11 px-3.5 rounded-xl border border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-white/5 text-text-main dark:text-white font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2"
@@ -1077,6 +1027,15 @@ export const FoodCost = () => {
                   </div>
                 )}
               </div>
+
+              {/* Batch Scaler Button (Icon-only, to the right of reset sheet) */}
+              <button 
+                onClick={() => setIsScalerModalOpen(true)}
+                className="size-11 rounded-xl border border-primary/40 bg-primary/10 hover:bg-primary hover:text-black text-primary font-black transition-all flex items-center justify-center shadow-sm"
+                title={`${t('foodCost.scaleBatch')} (${servings} pax)`}
+              >
+                <span className="material-symbols-outlined text-[20px]">aspect_ratio</span>
+              </button>
             </div>
           </div>
 
@@ -1433,7 +1392,47 @@ export const FoodCost = () => {
                   {t('foodCost.importClipboard')} ({clipboard.length})
                 </button>
 
-                {/* 4. Link existing Base Sheet to Final Sheet (if unlinked) */}
+                {/* 4. Currency Selector Dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => setIsCurrencyDropdownOpen(!isCurrencyDropdownOpen)}
+                    className="h-10 px-3.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-surface-dark hover:border-primary text-text-main dark:text-white font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm"
+                    title={t('foodCost.currency') || 'Change Currency'}
+                  >
+                    <span className="material-symbols-outlined text-[16px] text-primary">payments</span>
+                    <span>{activeCurr}</span>
+                    <span className="material-symbols-outlined text-[14px] text-text-muted">expand_more</span>
+                  </button>
+
+                  {isCurrencyDropdownOpen && (
+                    <div className="absolute left-0 top-12 z-50 bg-white dark:bg-surface-dark p-2 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl w-44 space-y-1 animate-fade-in">
+                      <span className="text-[9px] font-black uppercase tracking-wider text-text-muted px-2 block py-1">
+                        {t('foodCost.currency')}
+                      </span>
+                      {CURRENCY_OPTIONS.map(opt => (
+                        <button
+                          key={opt.symbol}
+                          onClick={() => {
+                            setCurrency(opt.symbol);
+                            setIsCurrencyDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between transition-colors ${
+                            activeCurr === opt.symbol
+                              ? 'bg-primary text-black font-black'
+                              : 'hover:bg-gray-100 dark:hover:bg-white/5 text-text-main dark:text-gray-300'
+                          }`}
+                        >
+                          <span>{opt.label}</span>
+                          {activeCurr === opt.symbol && (
+                            <span className="material-symbols-outlined text-[14px]">check</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 5. Link existing Base Sheet to Final Sheet (if unlinked) */}
                 {activeSheetId === 'final' && unlinkedBaseSheets.length > 0 && (
                   <div className="flex items-center gap-1">
                     <span className="text-[10px] text-text-muted font-bold uppercase hidden md:inline">{t('foodCost.linkSubRecipe')}:</span>

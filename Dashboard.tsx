@@ -303,14 +303,14 @@ export const Dashboard = () => {
                   onClick={() => handleToolClick('/create-dish')}
                   className="group/btn relative h-16 px-10 bg-primary text-black text-sm font-black uppercase tracking-[0.1em] rounded-2xl flex items-center gap-4 transition-all hover:scale-105 active:scale-95 shadow-2xl shadow-primary/40 overflow-hidden"
                 >
-                  <span>Start Creating</span>
+                  <span>{t('dashboard.startCreating') || 'Start Creating'}</span>
                   <span className="material-symbols-outlined">edit_square</span>
                 </button>
                 <button 
                   onClick={scrollToTools}
                   className="h-16 px-10 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white text-sm font-black uppercase tracking-[0.1em] rounded-2xl transition-all border border-white/20 flex items-center gap-3"
                 >
-                  Explore Features
+                  {t('dashboard.exploreFeatures') || 'Explore Features'}
                 </button>
               </div>
             </div>
@@ -320,14 +320,18 @@ export const Dashboard = () => {
           <div className="space-y-8">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-gray-100 dark:border-gray-800 pb-6">
               <div className="space-y-1">
-                <h2 className="text-3xl font-black tracking-tighter uppercase dark:text-white">Top Liked <span className="text-primary italic">Masterpieces</span></h2>
-                <p className="text-sm text-text-muted font-medium">Most celebrated culinary works ({featuredTimeframe}).</p>
+                <h2 className="text-3xl font-black tracking-tighter uppercase dark:text-white">
+                  {t('dashboard.topLiked') || 'Top Liked Masterpieces'}
+                </h2>
+                <p className="text-sm text-text-muted font-medium">
+                  {t('dashboard.topLikedDesc') || 'Most celebrated culinary works'} ({featuredTimeframe}).
+                </p>
               </div>
               <button 
                 onClick={() => handleToolClick('/social')}
                 className="flex items-center gap-2 text-primary font-black uppercase text-xs tracking-widest hover:translate-x-2 transition-transform"
               >
-                Community Feed <span className="material-symbols-outlined">arrow_right_alt</span>
+                {t('dashboard.communityFeed') || 'Community Feed'} <span className="material-symbols-outlined">arrow_right_alt</span>
               </button>
             </div>
             
@@ -349,11 +353,11 @@ export const Dashboard = () => {
                       <span className="material-symbols-outlined text-3xl">skillet</span>
                     </div>
                     <div className="space-y-1">
-                      <h4 className="font-black text-sm uppercase tracking-wider text-text-muted">Empty Slot #{placeholderIdx}</h4>
-                      <p className="text-xs text-text-muted font-medium max-w-[200px]">Publish your recipe masterpiece to claim the spotlight.</p>
+                      <h4 className="font-black text-sm uppercase tracking-wider text-text-muted">{t('dashboard.featuredSpot') || 'Featured Spot Available'}</h4>
+                      <p className="text-xs text-text-muted font-medium max-w-[200px]">{t('dashboard.shareWithCommunity') || 'Share your latest creation with the global community.'}</p>
                     </div>
                     <button onClick={() => handleToolClick('/create-dish')} className="mt-2 px-5 py-2.5 rounded-xl bg-primary text-black text-[10px] font-black uppercase tracking-widest shadow-md hover:scale-105 transition-transform">
-                      Publish Creation
+                      {t('dashboard.createRecipe') || 'Create Recipe'}
                     </button>
                   </div>
                 ))
@@ -367,11 +371,11 @@ export const Dashboard = () => {
                       <span className="material-symbols-outlined text-3xl">restaurant</span>
                     </div>
                     <div className="space-y-1">
-                      <h4 className="font-black text-sm uppercase tracking-wider text-text-muted">Featured Spot Available</h4>
-                      <p className="text-xs text-text-muted font-medium max-w-[200px]">Share your latest creation with the global community.</p>
+                      <h4 className="font-black text-sm uppercase tracking-wider text-text-muted">{t('dashboard.featuredSpot') || 'Featured Spot Available'}</h4>
+                      <p className="text-xs text-text-muted font-medium max-w-[200px]">{t('dashboard.shareWithCommunity') || 'Share your latest creation with the global community.'}</p>
                     </div>
                     <button onClick={() => handleToolClick('/create-dish')} className="mt-2 px-5 py-2.5 rounded-xl bg-primary text-black text-[10px] font-black uppercase tracking-widest shadow-md hover:scale-105 transition-transform">
-                      Create Recipe
+                      {t('dashboard.createRecipe') || 'Create Recipe'}
                     </button>
                   </div>
                 ))
@@ -382,8 +386,8 @@ export const Dashboard = () => {
           {/* Expanded Tools Grid */}
           <div id="tools-grid" className="space-y-8 pt-10">
             <div className="space-y-1">
-              <h2 className="text-2xl font-black tracking-tight uppercase dark:text-white">Studio <span className="text-primary italic">Modules</span></h2>
-              <p className="text-sm text-text-muted">Access professional-grade culinary engineering tools.</p>
+              <h2 className="text-2xl font-black tracking-tight uppercase dark:text-white">{t('dashboard.modules') || 'Studio Modules'}</h2>
+              <p className="text-sm text-text-muted">{t('dashboard.modulesDesc') || 'Access professional-grade culinary engineering tools.'}</p>
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
