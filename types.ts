@@ -1,6 +1,7 @@
 export enum PlanTier {
   FREE = 'free',
-  PLATINUM = 'platinum',
+  PRIME = 'prime',
+  PLATINUM = 'prime',
   PLATINUM_PRIME = 'platinum_prime'
 }
 
@@ -9,6 +10,18 @@ export enum CostTemplate {
   RESTAURANT = 'RESTAURANT',
   NUTRITIONAL = 'NUTRITIONAL',
   ECONOMIC = 'ECONOMIC'
+}
+
+export interface PromoCode {
+  id: string;
+  code: string;
+  tier: PlanTier;
+  durationMonths: number;
+  maxUses: number;
+  currentUses: number;
+  isActive: boolean;
+  validUntil?: string;
+  createdAt: string;
 }
 
 export interface UserProfile {
@@ -26,6 +39,8 @@ export interface UserProfile {
   paymentMethod?: string;
   stripeCustomerId?: string;
   subscriptionStatus?: string;
+  quickAnalysesCount?: number;
+  deepAnalysesCount?: number;
 }
 
 export interface Project {

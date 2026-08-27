@@ -101,6 +101,143 @@ export const translations: Record<string, any> = {
       trendingChefs: "Trending Chefs", follow: "Follow", comments: "Comments", reply: "Reply",
       writeComment: "Write a culinary note or comment...", postComment: "Publish"
     },
+    createDish: {
+      namePlaceholder: "Name masterpiece...",
+      syncing: "Syncing...",
+      cloudSaved: "CLOUD SAVED",
+      recipes: "Recipes",
+      share: "Share",
+      stopSharing: "Stop Sharing",
+      update: "Update",
+      save: "Save",
+      newCanvas: "New Canvas",
+      tabs: {
+        info: "Info",
+        ingredients: "Ingredients",
+        steps: "Steps",
+        picture: "Picture",
+        notes: "Notes",
+        attachments: "Attachments"
+      },
+      info: {
+        description: "Masterpiece Description",
+        inspirationPlaceholder: "Inspiration, culinary story & tasting notes...",
+        difficulty: "Difficulty",
+        prepTime: "Prep Time",
+        mins: "Mins",
+        hours: "Hours",
+        servings: "Servings",
+        beginner: "Beginner",
+        intermediate: "Intermediate",
+        advanced: "Advanced"
+      },
+      ingredients: {
+        title: "Ingredient Mapping",
+        addSubdivision: "Add Subdivision",
+        addIngredient: "+ Add Ingredient",
+        name: "Name",
+        qty: "Qty",
+        unit: "Unit"
+      },
+      steps: {
+        title: "Sequence & Technique",
+        addStep: "Add Step",
+        processPlaceholder: "Describe process, temperature and texture...",
+        removeStep: "Remove Step"
+      },
+      pictures: {
+        title: "Visual Plating",
+        upload: "Upload Photo"
+      },
+      notes: {
+        title: "Chef Notes & Variations",
+        addNote: "Add Note",
+        placeholder: "Note content..."
+      },
+      attachments: {
+        title: "Linked Studio Intelligence",
+        subtitle: "Attach molecular pairing analyses and food costing calculations to this recipe canvas.",
+        linkPairing: "Link Pairing Analysis",
+        linkPairingDesc: "Attach flavor affinity reports and scores",
+        linkFoodCost: "Link Food Cost Sheet",
+        linkFoodCostDesc: "Attach cost per serving & sub-recipe sheets",
+        currentlyAttached: "Currently Attached",
+        noAttachments: "No intelligence linked yet. Click above to attach saved pairings or food costs.",
+        costPerServing: "Cost / Pax",
+        totalCost: "Total Cost",
+        portions: "portions",
+        score: "Synergy Score",
+        openSheet: "Open Sheet",
+        openPairing: "Open Pairing",
+        searchPlaceholder: "Search saved items...",
+        attachModalTitlePairing: "Attach Pairing Analysis",
+        attachModalTitleFoodCost: "Attach Food Cost Calculation",
+        noSavedFoodCosts: "No saved food cost calculations found. Create sheets in Food Cost first.",
+        noSavedPairings: "No saved pairings found. Create analyses in Pairing Analysis first."
+      },
+      recipesModal: {
+        title: "My Saved Recipes",
+        empty: "No saved recipes found. Create your first masterpiece!",
+        destroyTitle: "Destroy Recipe?",
+        destroyDesc: "This action is permanent and cannot be undone."
+      }
+    },
+    dashboard: {
+      studioAccess: "Studio Access",
+      heroTitle: "Culinary Creator Studio",
+      startCreating: "Start Creating",
+      exploreFeatures: "Explore Features",
+      topLiked: "Top Liked Masterpieces",
+      topLikedDesc: "Most celebrated culinary works",
+      communityFeed: "Community Feed",
+      modules: "Studio Modules",
+      modulesDesc: "Access professional-grade culinary engineering tools.",
+      featuredSpot: "Featured Spot Available",
+      shareWithCommunity: "Share your latest creation with the global community.",
+      createRecipe: "Create Recipe"
+    },
+    pairingAnalysis: {
+      title: "Flavor & Pairing Analysis",
+      subtitle: "Molecular compatibility and aromatic synergy powered by culinary intelligence.",
+      myPairings: "My Pairings",
+      saveToCloud: "Save to Cloud",
+      clean: "Clean Canvas",
+      selectedIngredients: "Selected Ingredients",
+      addIngredient: "Add Ingredient...",
+      analyzeButton: "Run Pairing Analysis",
+      analyzing: "Analyzing Molecular Aromas...",
+      compatibilityScore: "Compatibility Score",
+      flavorProfile: "Flavor & Aromatic Profile",
+      sharedCompounds: "Shared Key Aroma Compounds",
+      creativeApplication: "Creative Culinary Application"
+    },
+    priceTracker: {
+      title: "Market Price Tracker & Lonja",
+      subtitle: "Live global raw ingredient market pricing, supplier intelligence & yield analysis.",
+      searchPlaceholder: "Search raw materials...",
+      allCountries: "All Origins",
+      allCategories: "All Categories",
+      addToClipboard: "Add to Clipboard",
+      inClipboard: "In Clipboard"
+    },
+    foodHistory: {
+      title: "Gastronomic History & Origins",
+      subtitle: "Deep cultural roots, ancestral techniques, and culinary evolution across civilizations.",
+      searchPlaceholder: "Search culinary eras, techniques, or cultures..."
+    },
+    common: {
+      search: "Search...",
+      save: "Save",
+      saving: "Saving...",
+      saved: "Saved",
+      cancel: "Cancel",
+      delete: "Delete",
+      edit: "Edit",
+      close: "Close",
+      confirm: "Confirm",
+      back: "Back",
+      loading: "Loading..."
+    },
     errors: {
       required: "This field is required", invalidEmail: "Please enter a valid email",
       invalidPassword: "Password must be at least 6 characters", serverError: "Server error. Please try again."
@@ -208,6 +345,143 @@ export const translations: Record<string, any> = {
       following: "Siguiendo", saved: "Guardados", searchTopics: "Buscar técnicas y temas", new: "Novedades", trending: "Tendencias",
       trendingChefs: "Chefs Destacados", follow: "Seguir", comments: "Comentarios", reply: "Responder",
       writeComment: "Escribe una nota gastronómica o comentario...", postComment: "Publicar"
+    },
+    createDish: {
+      namePlaceholder: "Nombre de la creación culinaria...",
+      syncing: "Sincronizando...",
+      cloudSaved: "GUARDADO EN CLOUD",
+      recipes: "Recetas",
+      share: "Compartir",
+      stopSharing: "Hacer Privado",
+      update: "Actualizar",
+      save: "Guardar",
+      newCanvas: "Nuevo Lienzo",
+      tabs: {
+        info: "Información",
+        ingredients: "Ingredientes",
+        steps: "Pasos",
+        picture: "Fotos",
+        notes: "Notas",
+        attachments: "Adjuntos"
+      },
+      info: {
+        description: "Descripción de la Creación",
+        inspirationPlaceholder: "Inspiración, relato gastronómico y notas de cata...",
+        difficulty: "Dificultad",
+        prepTime: "Tiempo de Preparación",
+        mins: "Min",
+        hours: "Horas",
+        servings: "Raciones",
+        beginner: "Iniciación",
+        intermediate: "Intermedio",
+        advanced: "Avanzado"
+      },
+      ingredients: {
+        title: "Estructura de Ingredientes",
+        addSubdivision: "Añadir Subdivisión",
+        addIngredient: "+ Añadir Ingrediente",
+        name: "Nombre",
+        qty: "Cant.",
+        unit: "Unidad"
+      },
+      steps: {
+        title: "Secuencia y Técnicas",
+        addStep: "Añadir Paso",
+        processPlaceholder: "Describe procesos, temperaturas, texturas y tiempos...",
+        removeStep: "Eliminar Paso"
+      },
+      pictures: {
+        title: "Emplatado y Fotografía",
+        upload: "Subir Foto"
+      },
+      notes: {
+        title: "Notas de Chef y Variaciones",
+        addNote: "Añadir Nota",
+        placeholder: "Contenido de la nota..."
+      },
+      attachments: {
+        title: "Inteligencia Culinaria Vinculada",
+        subtitle: "Adjunta análisis de maridaje molecular y escandallos de costes a esta ficha de receta.",
+        linkPairing: "Vincular Análisis de Maridaje",
+        linkPairingDesc: "Adjuntar afinidad molecular y porcentaje de sinergia",
+        linkFoodCost: "Vincular Escandallo de Costes",
+        linkFoodCostDesc: "Adjuntar coste por ración y desglose de elaboraciones",
+        currentlyAttached: "Actualmente Vinculados",
+        noAttachments: "No hay inteligencia vinculada aún. Haz clic arriba para adjuntar maridajes o escandallos.",
+        costPerServing: "Coste / Ración",
+        totalCost: "Coste Total",
+        portions: "raciones",
+        score: "Puntuación de Sinergia",
+        openSheet: "Abrir Escandallo",
+        openPairing: "Abrir Maridaje",
+        searchPlaceholder: "Buscar elementos guardados...",
+        attachModalTitlePairing: "Adjuntar Análisis de Maridaje",
+        attachModalTitleFoodCost: "Adjuntar Escandallo de Costes",
+        noSavedFoodCosts: "No se encontraron escandallos guardados. Crea fichas en Escandallos primero.",
+        noSavedPairings: "No se encontraron análisis de maridaje guardados. Crea análisis en Maridaje primero."
+      },
+      recipesModal: {
+        title: "Mis Recetas Guardadas",
+        empty: "No tienes recetas guardadas aún. ¡Crea tu primera obra!",
+        destroyTitle: "¿Eliminar Receta?",
+        destroyDesc: "Esta acción es definitiva y no se puede deshacer."
+      }
+    },
+    dashboard: {
+      studioAccess: "Acceso al Estudio",
+      heroTitle: "Culinary Creator Studio",
+      startCreating: "Empezar a Crear",
+      exploreFeatures: "Explorar Herramientas",
+      topLiked: "Obras Culinarias Más Valoradas",
+      topLikedDesc: "Creaciones más celebradas por la comunidad",
+      communityFeed: "Feed de la Comunidad",
+      modules: "Módulos del Estudio",
+      modulesDesc: "Accede a herramientas profesionales de ingeniería culinaria.",
+      featuredSpot: "Espacio Destacado Disponible",
+      shareWithCommunity: "Comparte tu última creación con la comunidad global.",
+      createRecipe: "Crear Receta"
+    },
+    pairingAnalysis: {
+      title: "Análisis de Maridaje y Sabores",
+      subtitle: "Compatibilidad molecular y sinergia aromática con inteligencia culinaria.",
+      myPairings: "Mis Maridajes",
+      saveToCloud: "Guardar en Cloud",
+      clean: "Limpiar Lienzo",
+      selectedIngredients: "Ingredientes Seleccionados",
+      addIngredient: "Añadir ingrediente...",
+      analyzeButton: "Ejecutar Análisis de Maridaje",
+      analyzing: "Analizando Aromas Moleculares...",
+      compatibilityScore: "Puntuación de Compatibilidad",
+      flavorProfile: "Perfil Aromático y de Sabor",
+      sharedCompounds: "Compuestos Aromáticos Compartidos",
+      creativeApplication: "Aplicación Culinaria Creativa"
+    },
+    priceTracker: {
+      title: "Precios de Mercado y Lonja",
+      subtitle: "Precios de materias primas en tiempo real, inteligencia de proveedores y mermas.",
+      searchPlaceholder: "Buscar materias primas...",
+      allCountries: "Todos los Orígenes",
+      allCategories: "Todas las Categorías",
+      addToClipboard: "Añadir a Portapapeles",
+      inClipboard: "En Portapapeles"
+    },
+    foodHistory: {
+      title: "Historia y Orígenes Gastronómicos",
+      subtitle: "Raíces culturales profundas, técnicas ancestrales y evolución culinaria en el mundo.",
+      searchPlaceholder: "Buscar épocas, técnicas o culturas gastronómicas..."
+    },
+    common: {
+      search: "Buscar...",
+      save: "Guardar",
+      saving: "Guardando...",
+      saved: "Guardado",
+      cancel: "Cancelar",
+      delete: "Eliminar",
+      edit: "Editar",
+      close: "Cerrar",
+      confirm: "Confirmar",
+      back: "Volver",
+      loading: "Cargando..."
     },
     errors: {
       required: "Este campo es obligatorio", invalidEmail: "Por favor introduce un correo válido",

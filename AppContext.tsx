@@ -38,7 +38,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     (localStorage.getItem('theme') as 'light' | 'dark') || 'light'
   );
   const [language, setLanguageState] = useState(
-    localStorage.getItem('language') || 'es'
+    localStorage.getItem('language') || 'en'
   );
   const [currency, setCurrencyState] = useState(
     localStorage.getItem('currency') || '€'
@@ -190,7 +190,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             chefName: profile.chef_name || tempUserData.chefName,
             bio: profile.bio || tempUserData.bio,
             avatarUrl: profile.avatar_url || tempUserData.avatarUrl,
-            tier: (profile.tier as PlanTier) || tempUserData.tier
+            tier: (profile.tier as PlanTier) || tempUserData.tier,
+            subscriptionRenewal: profile.subscription_renewal,
+            subscriptionStatus: profile.subscription_status,
+            stripeCustomerId: profile.stripe_customer_id,
+            quickAnalysesCount: profile.quick_analyses_count || 0,
+            deepAnalysesCount: profile.deep_analyses_count || 0
           });
         }
       } catch (e) {

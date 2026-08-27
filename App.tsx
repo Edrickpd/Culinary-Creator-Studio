@@ -14,6 +14,7 @@ import { Settings } from './pages/Settings';
 import { gemini } from './services/geminiService';
 import { AppProvider, useAppContext } from './AppContext';
 import { AuthModals } from './components/AuthModals';
+import { BetaAlertModal } from './components/BetaAlertModal';
 import { supabase } from './supabaseClient';
 
 const ChatBot = () => {
@@ -248,6 +249,7 @@ const AppContent = () => {
 
   return (
     <>
+      <BetaAlertModal />
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/price-tracker" element={<PriceTracker />} />
