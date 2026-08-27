@@ -1,0 +1,21 @@
+
+{
+  "short_name": "CulinaryStudio",
+  "name": "Culinary Creator Studio",
+  "icons": [
+    {
+      "src": "https://img.icons8.com/fluency/192/000000/chef-hat.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://img.icons8.com/fluency/512/000000/chef-hat.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#ecb613",
+  "background_color": "#fcfbf9"
+}
